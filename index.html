@@ -83,19 +83,34 @@
 
     backendUrl.textContent = BACKEND;
 
-    function addMessage(text, side = "left") {
-      const div = document.createElement("div");
-      div.className =
-        side === "right"
-          ? "align-self-end bg-primary text-white rounded-4 p-3"
-          : "align-self-start bg-white border rounded-4 p-3";
+function addMessageText(text, side = "left") {
+  const div = document.createElement("div");
+  div.className =
+    side === "right"
+      ? "align-self-end bg-primary text-white rounded-4 p-3"
+      : "align-self-start bg-white border rounded-4 p-3";
 
-      div.style.maxWidth = "80%";
-      div.innerText = text;
-      chat.appendChild(div);
+  div.style.maxWidth = "80%";
+  div.innerText = text;
+  chat.appendChild(div);
 
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-    }
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+
+function addMessageHtml(html, side = "left") {
+  const div = document.createElement("div");
+  div.className =
+    side === "right"
+      ? "align-self-end bg-primary text-white rounded-4 p-3"
+      : "align-self-start bg-white border rounded-4 p-3";
+
+  div.style.maxWidth = "80%";
+  div.innerHTML = html;
+  chat.appendChild(div);
+
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+
 
     modeSelect.addEventListener("change", () => {
       if (modeSelect.value === "movie") {
@@ -114,8 +129,8 @@
       const mode = modeSelect.value;
       textInput.value = "";
 
-      addMessage(text, "right");
-      addMessage("⏳ Buscando...", "left");
+      addMessageText(text, "right") ;
+      addMessageText("⏳ Buscando...", "left");
 
       try {
         const res = await fetch(BACKEND + "/chat", {
@@ -134,7 +149,45 @@
           return;
         }
 
-        addMessage(data.answer || "Sin respuesta");
+        // Si es actor y viene lista de movies -> mostramos 10 + "Ver más"
+if (data.mode === "actor" && Array.isArray(data.movies) && data.movies.length > 0) {
+  const first = data.movies.slice(0, 10);
+  const rest = data.movies.slice(10);
+
+  const firstLines = first.map(m => `• ${m.title} (${m.year})`).join("<br>");
+  const restLines = rest.map(m => `• ${m.title} (${m.year})`).join("<br>");
+
+  const id = "more-" + Date.now();
+
+  let html = `<div class="fw-semibold mb-2">🎭 Filmografía de ${data.actor || data.movie?.actor || ""}</div>`;
+  html += `<div>${firstLines}</div>`;
+
+  if (rest.length > 0) {
+    html += `
+      <div class="mt-2">
+        <button class="btn btn-sm btn-outline-primary" id="${id}-btn">Ver más (${rest.length})</button>
+      </div>
+      <div class="mt-2 d-none" id="${id}-panel">${restLines}</div>
+    `;
+  }
+
+  addMessageHtml(html, "left");
+
+  // Activar botón "Ver más"
+  if (rest.length > 0) {
+    const btn = document.getElementById(`${id}-btn`);
+    const panel = document.getElementById(`${id}-panel`);
+    btn.addEventListener("click", () => {
+      panel.classList.toggle("d-none");
+      btn.innerText = panel.classList.contains("d-none") ? `Ver más (${rest.length})` : "Ver menos";
+    });
+  }
+
+} else {
+  // default (película o actor sin movies)
+  addMessageText(data.answer || "Sin respuesta", "left");
+}
+
       } catch (err) {
         chat.lastChild.remove();
         addMessage("❌ Error de conexión con el backend");
