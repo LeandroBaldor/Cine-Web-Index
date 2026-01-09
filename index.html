@@ -132,22 +132,32 @@ function addMessageHtml(html, side = "left") {
       addMessageText(text, "right") ;
       addMessageText("⏳ Buscando...", "left");
 
-      try {
-        const res = await fetch(BACKEND + "/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode, text })
-        });
+try {
+  const res = await fetch(BACKEND + "/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, text })
+  });
 
-        const data = await res.json();
+  const data = await res.json();
 
-        // borrar el "Buscando..."
-        chat.lastChild.remove();
+  chat.lastChild.remove();
 
-        if (!res.ok || data.ok === false) {
-          addMessage("❌ Error: " + (data.error || "Error desconocido"));
-          return;
-        }
+  if (!res.ok || data.ok === false) {
+    addMessageText("❌ Error: " + (data.error || "Error desconocido"), "left");
+    return;
+  }
+
+  if (data.mode === "actor" && Array.isArray(data.movies) && data.movies.length > 0) {
+    ...
+  } else {
+    addMessageText(data.answer || "Sin respuesta", "left");
+  }
+
+} catch (err) {
+  chat.lastChild?.remove();
+  addMessageText("❌ Error de conexión con el backend", "left");
+}
 
   // Actor → mostrar hasta 100 películas
 if (data.mode === "actor" && Array.isArray(data.movies) && data.movies.length > 0) {
