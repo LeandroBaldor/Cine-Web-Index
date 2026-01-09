@@ -149,29 +149,23 @@ function addMessageHtml(html, side = "left") {
           return;
         }
 
-        // Si es actor y viene lista de movies -> mostramos 10 + "Ver más"
+  // Actor → mostrar hasta 100 películas
 if (data.mode === "actor" && Array.isArray(data.movies) && data.movies.length > 0) {
-  const first = data.movies.slice(0, 10);
-  const rest = data.movies.slice(10);
+  const lines = data.movies
+    .slice(0, 100)
+    .map(m => `• ${m.title} (${m.year})`)
+    .join("<br>");
 
-  const firstLines = first.map(m => `• ${m.title} (${m.year})`).join("<br>");
-  const restLines = rest.map(m => `• ${m.title} (${m.year})`).join("<br>");
-
-  const id = "more-" + Date.now();
-
-  let html = `<div class="fw-semibold mb-2">🎭 Filmografía de ${data.actor || data.movie?.actor || ""}</div>`;
-  html += `<div>${firstLines}</div>`;
-
-  if (rest.length > 0) {
-    html += `
-      <div class="mt-2">
-        <button class="btn btn-sm btn-outline-primary" id="${id}-btn">Ver más (${rest.length})</button>
-      </div>
-      <div class="mt-2 d-none" id="${id}-panel">${restLines}</div>
-    `;
-  }
+  const html = `
+    <div class="fw-semibold mb-2">
+      🎭 Filmografía de ${data.actor} (hasta 100)
+    </div>
+    <div>${lines}</div>
+  `;
 
   addMessageHtml(html, "left");
+}
+
 
   // Activar botón "Ver más"
   if (rest.length > 0) {
