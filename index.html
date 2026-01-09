@@ -1,132 +1,148 @@
-import os
-import requests
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cine Assistant</title>
 
-# =========================
-# Config
-# =========================
-OMDB_API_KEY = os.getenv("OMDB_API_KEY", "").strip()
-OMDB_BASE = "https://www.omdbapi.com/"
+  <!-- Bootstrap -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+</head>
 
-app = FastAPI(title="Cine Assistant API (OMDb only)", version="1.0")
+<body class="bg-light d-flex flex-column" style="min-height:100vh;">
 
-# CORS para GitHub Pages (tu sitio)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://leandrobaldor.github.io"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+  <!-- Header -->
+  <nav class="navbar bg-white border-bottom px-3">
+    <span class="navbar-brand fw-semibold">
+      🎬 Cine Assistant
+    </span>
+    <span class="badge bg-secondary">Demo</span>
+  </nav>
 
-# =========================
-# Schemas
-# =========================
-class ChatRequest(BaseModel):
-    mode: str  # "movie" | "actor"
-    text: str
+  <!-- Chat container -->
+  <main class="container my-3 flex-grow-1 d-flex flex-column">
+    <div id="chat" class="flex-grow-1 d-flex flex-column gap-2">
+      <div class="align-self-start bg-white border rounded-4 p-3">
+        👋 Hola. Elegí <b>Película</b> o <b>Actor</b> y escribí abajo.
+      </div>
+    </div>
+  </main>
 
-# =========================
-# Helpers: OMDb
-# =========================
-def omdb_get_movie(title: str) -> dict | None:
-    if not OMDB_API_KEY:
-        raise RuntimeError("Falta OMDB_API_KEY (variable de entorno en Render).")
+  <!-- Input area -->
+  <footer class="bg-white border-top p-3">
+    <div class="container">
+      <div class="row g-2 align-items-center mb-2">
+        <div class="col-12 col-md-3">
+          <select id="mode" class="form-select">
+            <option value="movie" selected>🎬 Película</option>
+            <option value="actor">🎭 Actor</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-9">
+          <small class="text-muted" id="hint">
+            Escribí una película (ej: The Godfather)
+          </small>
+        </div>
+      </div>
 
-    params = {
-        "apikey": OMDB_API_KEY,
-        "t": title,
-        "plot": "short",
-        "r": "json",
+      <form id="form" class="row g-2">
+        <div class="col-12 col-md-10">
+          <input
+            id="text"
+            class="form-control form-control-lg"
+            placeholder="Escribí acá..."
+            autocomplete="off"
+          />
+        </div>
+        <div class="col-12 col-md-2 d-grid">
+          <button class="btn btn-primary btn-lg" type="submit">
+            Enviar
+          </button>
+        </div>
+      </form>
+
+      <div class="small text-muted mt-2">
+        Backend: <code id="backendUrl"></code>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // 👉 URL de tu backend en Render
+    const BACKEND = "https://cine-app-otdv.onrender.com";
+
+    const chat = document.getElementById("chat");
+    const form = document.getElementById("form");
+    const textInput = document.getElementById("text");
+    const modeSelect = document.getElementById("mode");
+    const hint = document.getElementById("hint");
+    const backendUrl = document.getElementById("backendUrl");
+
+    backendUrl.textContent = BACKEND;
+
+    function addMessage(text, side = "left") {
+      const div = document.createElement("div");
+      div.className =
+        side === "right"
+          ? "align-self-end bg-primary text-white rounded-4 p-3"
+          : "align-self-start bg-white border rounded-4 p-3";
+
+      div.style.maxWidth = "80%";
+      div.innerText = text;
+      chat.appendChild(div);
+
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     }
-    r = requests.get(OMDB_BASE, params=params, timeout=20)
-    r.raise_for_status()
-    data = r.json()
 
-    if data.get("Response") != "True":
-        return None
+    modeSelect.addEventListener("change", () => {
+      if (modeSelect.value === "movie") {
+        hint.innerText = "Escribí una película (ej: The Godfather)";
+      } else {
+        hint.innerText = "Escribí un actor (ej: Leonardo DiCaprio)";
+      }
+    });
 
-    return {
-        "title": data.get("Title"),
-        "year": data.get("Year"),
-        "director": data.get("Director"),
-        "actors": data.get("Actors"),
-        "imdb_rating": data.get("imdbRating"),
-        "country": data.get("Country"),
-        "genre": data.get("Genre"),
-        "plot": data.get("Plot"),
-        "imdb_id": data.get("imdbID"),
-        "poster": data.get("Poster"),
-    }
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
-def format_movie_answer(m: dict) -> str:
-    return (
-        f"🎬 {m['title']} ({m['year']})\n"
-        f"⭐ IMDb: {m['imdb_rating']}\n"
-        f"🎬 Director: {m['director']}\n"
-        f"👥 Actores: {m['actors']}\n"
-        f"🌍 País: {m['country']}"
-    )
+      const text = textInput.value.trim();
+      if (!text) return;
 
-# =========================
-# Routes
-# =========================
-@app.get("/health")
-def health():
-    return {"ok": True}
+      const mode = modeSelect.value;
+      textInput.value = "";
 
-@app.post("/chat")
-def chat(req: ChatRequest):
-    mode = (req.mode or "").strip().lower()
-    text = (req.text or "").strip()
+      addMessage(text, "right");
+      addMessage("⏳ Buscando...", "left");
 
-    if not text:
-        return {"ok": False, "error": "Texto vacío. Escribí una película o actor."}
+      try {
+        const res = await fetch(BACKEND + "/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode, text })
+        });
 
-    # ---- MODO PELÍCULA ----
-    if mode == "movie":
-        try:
-            m = omdb_get_movie(text)
-        except Exception as e:
-            # esto devuelve error claro si falta OMDB_API_KEY
-            return {"ok": False, "error": str(e)}
+        const data = await res.json();
 
-        if not m:
-            return {
-                "ok": True,
-                "mode": "movie",
-                "found": False,
-                "title": text,
-                "answer": f"❌ No encontré la película '{text}'. Probá con otro título.",
-                "movie": None,
-            }
+        // borrar el "Buscando..."
+        chat.lastChild.remove();
 
-        return {
-            "ok": True,
-            "mode": "movie",
-            "found": True,
-            "title": m["title"],
-            "answer": format_movie_answer(m),
-            "movie": m,
+        if (!res.ok || data.ok === false) {
+          addMessage("❌ Error: " + (data.error || "Error desconocido"));
+          return;
         }
 
-    # ---- MODO ACTOR ----
-    if mode == "actor":
-        # OMDb no soporta "filmografía por actor" directamente
-        return {
-            "ok": True,
-            "mode": "actor",
-            "found": False,
-            "actor": text,
-            "answer": (
-                "⚠️ OMDb no permite buscar filmografía completa por actor.\n"
-                "Si querés que 'Ingresar actor' devuelva películas, necesitamos usar otra fuente "
-                "como TMDb (gratis) o un dataset de IMDb.\n"
-                "Decime y lo habilitamos."
-            ),
-            "movies": [],
-        }
+        addMessage(data.answer || "Sin respuesta");
+      } catch (err) {
+        chat.lastChild.remove();
+        addMessage("❌ Error de conexión con el backend");
+      }
+    });
+  </script>
 
-    return {"ok": False, "error": "mode inválido. Usá 'movie' o 'actor'."}
+</body>
+</html>
+
 
