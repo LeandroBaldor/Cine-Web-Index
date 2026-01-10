@@ -37,6 +37,7 @@
             <option value="movie">Movie</option>
             <option value="actor">Actor</option>
             <option value="director">Director</option>
+            <option value="consultas">Consultas</option>
           </select>
         </div>
 
@@ -63,8 +64,35 @@
   </div>
 
   <script>
+    // =========================
+    // CONFIG
+    // =========================
     const API_URL = "https://cine-app-otdv.onrender.com/chat";
 
+    // =========================
+    // SESSION MANAGEMENT
+    // =========================
+    // Para qué sirve:
+    // - Genera un ID único por navegador
+    // - Lo guarda en localStorage
+    // - Permite que el backend recuerde el contexto de la conversación
+    function getSessionId() {
+      let sid = localStorage.getItem("cine_session_id");
+
+      if (!sid) {
+        sid = (crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Date.now()) + "-" + Math.random().toString(16).slice(2)
+        );
+        localStorage.setItem("cine_session_id", sid);
+      }
+
+      return sid;
+    }
+
+    // =========================
+    // EVENT HANDLER
+    // =========================
     document.getElementById("sendBtn").addEventListener("click", async () => {
       const mode = document.getElementById("mode").value;
       const text = document.getElementById("query").value.trim();
@@ -80,7 +108,11 @@
       try {
         const res = await fetch(API_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // Enviamos el session_id al backend
+            "X-Session-Id": getSessionId()
+          },
           body: JSON.stringify({ mode, text }),
         });
 
@@ -99,5 +131,3 @@
   </script>
 </body>
 </html>
-
-
