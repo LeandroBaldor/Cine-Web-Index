@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Movie Assistant</title>
+  <title>Cine Assistant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Bootstrap -->
@@ -23,20 +23,30 @@
       min-height: 300px;
       white-space: pre-line;
     }
+    /* Etiqueta fija "Consultas IA" */
+    .mode-pill {
+      width: 100%;
+      height: calc(2.375rem + 2px);
+      display: flex;
+      align-items: center;
+      padding: 0 0.75rem;
+      border: 1px solid #495057;
+      border-radius: 0.375rem;
+      background-color: #111827;
+      color: #e5e7eb;
+      font-weight: 600;
+    }
   </style>
 </head>
 
 <body>
   <div class="container py-5">
-    <h1 class="mb-4">🎬 Movie Assistant</h1>
+    <h1 class="mb-4">🎬 Cine Assistant</h1>
 
     <div class="card p-4 mb-4 bg-dark text-light">
       <div class="row g-2">
         <div class="col-md-3">
-          <!-- ✅ Solo Consultas IA -->
-          <select id="mode" class="form-select" disabled>
-            <option value="consultas" selected>Consultas IA</option>
-          </select>
+          <div class="mode-pill">Consultas IA</div>
         </div>
 
         <div class="col-md-7">
@@ -44,7 +54,7 @@
             id="query"
             type="text"
             class="form-control"
-            placeholder="Preguntá por una película, actor o director (ej: '¿Quiénes actuaban en Inception?')"
+            placeholder="Preguntá por una película (ej: ¿Quiénes actuaban en Inception?)"
           />
         </div>
 
@@ -85,12 +95,12 @@
     }
 
     // =========================
-    // EVENT HANDLER
+    // SEND LOGIC (reutilizable)
     // =========================
-    document.getElementById("sendBtn").addEventListener("click", async () => {
-      // ✅ Modo fijo: Consultas
+    async function sendMessage() {
       const mode = "consultas";
-      const text = document.getElementById("query").value.trim();
+      const input = document.getElementById("query");
+      const text = input.value.trim();
       const responseBox = document.getElementById("response");
 
       if (!text) {
@@ -118,11 +128,26 @@
         }
 
         responseBox.textContent = data.answer || "Sin resultados.";
+        input.value = ""; // opcional: limpiar input
       } catch (err) {
         responseBox.textContent = "❌ Error de conexión con la API.";
+      }
+    }
+
+    // =========================
+    // EVENTOS
+    // =========================
+    document.getElementById("sendBtn").addEventListener("click", sendMessage);
+
+    // ✅ NUEVO: enviar con Enter
+    document.getElementById("query").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendMessage();
       }
     });
   </script>
 </body>
 </html>
 
+  
