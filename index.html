@@ -23,18 +23,22 @@
       min-height: 300px;
       white-space: pre-line;
     }
-    /* Etiqueta fija "Consultas IA" */
+
+    /* 🔥 Consultas IA destacado */
     .mode-pill {
       width: 100%;
-      height: calc(2.375rem + 2px);
+      height: 3rem;
       display: flex;
       align-items: center;
-      padding: 0 0.75rem;
-      border: 1px solid #495057;
-      border-radius: 0.375rem;
-      background-color: #111827;
-      color: #e5e7eb;
-      font-weight: 600;
+      justify-content: center;
+      padding: 0 1rem;
+      border-radius: 0.5rem;
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 1.2rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
   </style>
 </head>
@@ -44,7 +48,7 @@
     <h1 class="mb-4">🎬 Cine Assistant</h1>
 
     <div class="card p-4 mb-4 bg-dark text-light">
-      <div class="row g-2">
+      <div class="row g-2 align-items-center">
         <div class="col-md-3">
           <div class="mode-pill">Consultas IA</div>
         </div>
@@ -72,17 +76,10 @@
   </div>
 
   <script>
-    // =========================
-    // CONFIG
-    // =========================
     const API_URL = "https://cine-app-otdv.onrender.com/chat";
 
-    // =========================
-    // SESSION MANAGEMENT
-    // =========================
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
-
       if (!sid) {
         sid = (crypto.randomUUID
           ? crypto.randomUUID()
@@ -90,15 +87,10 @@
         );
         localStorage.setItem("cine_session_id", sid);
       }
-
       return sid;
     }
 
-    // =========================
-    // SEND LOGIC (reutilizable)
-    // =========================
     async function sendMessage() {
-      const mode = "consultas";
       const input = document.getElementById("query");
       const text = input.value.trim();
       const responseBox = document.getElementById("response");
@@ -117,7 +109,7 @@
             "Content-Type": "application/json",
             "X-Session-Id": getSessionId()
           },
-          body: JSON.stringify({ mode, text }),
+          body: JSON.stringify({ mode: "consultas", text }),
         });
 
         const data = await res.json();
@@ -128,18 +120,14 @@
         }
 
         responseBox.textContent = data.answer || "Sin resultados.";
-        input.value = ""; // opcional: limpiar input
+        input.value = "";
       } catch (err) {
         responseBox.textContent = "❌ Error de conexión con la API.";
       }
     }
 
-    // =========================
-    // EVENTOS
-    // =========================
     document.getElementById("sendBtn").addEventListener("click", sendMessage);
 
-    // ✅ NUEVO: enviar con Enter
     document.getElementById("query").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -149,5 +137,3 @@
   </script>
 </body>
 </html>
-
-  
