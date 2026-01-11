@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Movie Assistant</title>
+  <title>Cine Assistant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Bootstrap -->
@@ -33,11 +33,9 @@
     <div class="card p-4 mb-4 bg-dark text-light">
       <div class="row g-2">
         <div class="col-md-3">
-          <select id="mode" class="form-select">
-            <option value="movie">Movie</option>
-            <option value="actor">Actor</option>
-            <option value="director">Director</option>
-            <option value="consultas">Consultas</option>
+          <!-- ✅ Solo Consultas IA -->
+          <select id="mode" class="form-select" disabled>
+            <option value="consultas" selected>Consultas IA</option>
           </select>
         </div>
 
@@ -46,7 +44,7 @@
             id="query"
             type="text"
             class="form-control"
-            placeholder="Ingresá una película, actor o director"
+            placeholder="Preguntá por una película, actor o director (ej: '¿Quiénes actuaban en Inception?')"
           />
         </div>
 
@@ -72,10 +70,6 @@
     // =========================
     // SESSION MANAGEMENT
     // =========================
-    // Para qué sirve:
-    // - Genera un ID único por navegador
-    // - Lo guarda en localStorage
-    // - Permite que el backend recuerde el contexto de la conversación
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
 
@@ -94,7 +88,8 @@
     // EVENT HANDLER
     // =========================
     document.getElementById("sendBtn").addEventListener("click", async () => {
-      const mode = document.getElementById("mode").value;
+      // ✅ Modo fijo: Consultas
+      const mode = "consultas";
       const text = document.getElementById("query").value.trim();
       const responseBox = document.getElementById("response");
 
@@ -110,7 +105,6 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // Enviamos el session_id al backend
             "X-Session-Id": getSessionId()
           },
           body: JSON.stringify({ mode, text }),
@@ -131,3 +125,4 @@
   </script>
 </body>
 </html>
+
