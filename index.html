@@ -30,45 +30,80 @@
       padding: 1.5rem;
     }
 
-    /* Contenedor principal (mismo ancho para chat + input) */
+    /* Contenedor principal (mismo ancho chat + barra) */
     .main {
       flex: 1;
       display: flex;
       flex-direction: column;
-      min-height: 0; /* clave para que el scroll funcione bien */
-    }
-
-    /* Zona de respuesta (scroll) */
-    .chat-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0 0 1rem; /* el padding lateral lo da el container */
       min-height: 0;
     }
 
+    /* Zona chat (scroll) */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding-bottom: 1rem;
+    }
+
+    /* Fondo azul oscuro del chat */
     .chat-box {
       background-color: #020617;
-      border-radius: 8px;
-      padding: 20px;
-      white-space: pre-line;
+      border-radius: 12px;
+      padding: 18px;
       min-height: 100%;
+      border: 1px solid #0b1220;
     }
 
-    /* Barra inferior SIN fondo oscuro + un poco más arriba */
+    /* Lista de mensajes */
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Burbuja base */
+    .bubble {
+      max-width: 78%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Usuario (izquierda) */
+    .bubble.user {
+      align-self: flex-start;
+      background: #111827; /* gris oscuro */
+      color: #e5e7eb;
+      border-top-left-radius: 6px;
+    }
+
+    /* Modelo (derecha) */
+    .bubble.assistant {
+      align-self: flex-end;
+      background: #1f2937; /* un toque distinto */
+      color: #e5e7eb;
+      border-top-right-radius: 6px;
+    }
+
+    /* Texto chico para “cargando” */
+    .bubble.loading {
+      opacity: 0.9;
+      font-style: italic;
+    }
+
+    /* Barra inferior (sin fondo, un poco más arriba) */
     .input-bar {
-      background: transparent;      /* ✅ sin fondo azul oscuro */
-      border-top: none;             /* ✅ sin línea */
-      padding: 0;                   /* el padding lo maneja el container interno */
-      margin-bottom: 40px;          /* ✅ la sube un poco */
-    }
-
-    /* Card visual de la barra (opcional, liviana) */
-    .input-shell {
-      background: transparent;      /* ✅ sin fondo */
+      background: transparent;
       padding: 0;
+      margin-bottom: 18px; /* sube un poco la barra */
     }
 
-    /* 🔥 Agentic AI destacado */
+    /* 🔥 Agentic AI */
     .mode-pill {
       width: 100%;
       height: 3rem;
@@ -104,38 +139,38 @@
       <h1>🎬 Movie Assistant</h1>
     </div>
 
-    <!-- ✅ MISMO ANCHO: chat + barra dentro del mismo container -->
+    <!-- Mismo ancho para chat + barra -->
     <div class="container main">
 
-      <!-- Respuesta (zona alta) -->
+      <!-- Chat -->
       <div class="chat-area">
-        <div id="response" class="chat-box">
-          Acá va a aparecer la respuesta…
+        <div class="chat-box">
+          <div id="messages" class="messages">
+            <div class="bubble assistant">Acá va a aparecer la respuesta…</div>
+          </div>
         </div>
       </div>
 
       <!-- Barra inferior -->
       <div class="input-bar">
-        <div class="input-shell">
-          <div class="row g-2 align-items-center">
-            <div class="col-md-3">
-              <div class="mode-pill">Agentic AI</div>
-            </div>
+        <div class="row g-2 align-items-center">
+          <div class="col-md-3">
+            <div class="mode-pill">Agentic AI</div>
+          </div>
 
-            <div class="col-md-7">
-              <input
-                id="query"
-                type="text"
-                class="form-control"
-                placeholder="Preguntá por una película (ej: ¿Quiénes actuaban en Inception?)"
-              />
-            </div>
+          <div class="col-md-7">
+            <input
+              id="query"
+              type="text"
+              class="form-control"
+              placeholder="Preguntá por una película (ej: ¿Quiénes actuaban en Inception?)"
+            />
+          </div>
 
-            <div class="col-md-2 d-grid">
-              <button id="sendBtn" class="btn btn-primary btn-send">
-                Enviar
-              </button>
-            </div>
+          <div class="col-md-2 d-grid">
+            <button id="sendBtn" class="btn btn-primary btn-send">
+              Enviar
+            </button>
           </div>
         </div>
       </div>
@@ -158,44 +193,4 @@
       return sid;
     }
 
-    async function sendMessage() {
-      const input = document.getElementById("query");
-      const text = input.value.trim();
-      const responseBox = document.getElementById("response");
-
-      if (!text) {
-        responseBox.textContent = "❌ Ingresá un valor.";
-        return;
-      }
-
-      responseBox.textContent = "⏳ Buscando...";
-
-      try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Session-Id": getSessionId()
-          },
-          body: JSON.stringify({ mode: "consultas", text }),
-        });
-
-        const data = await res.json();
-        responseBox.textContent = data.answer || "Sin resultados.";
-        input.value = "";
-      } catch {
-        responseBox.textContent = "❌ Error de conexión con la API.";
-      }
-    }
-
-    document.getElementById("sendBtn").addEventListener("click", sendMessage);
-
-    document.getElementById("query").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-  </script>
-</body>
-</html>
+    function appendMessage(role
