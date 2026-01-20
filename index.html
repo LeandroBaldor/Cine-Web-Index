@@ -30,11 +30,20 @@
       padding: 1.5rem;
     }
 
+    /* Contenedor principal (mismo ancho para chat + input) */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0; /* clave para que el scroll funcione bien */
+    }
+
     /* Zona de respuesta (scroll) */
     .chat-area {
       flex: 1;
       overflow-y: auto;
-      padding: 0 1.5rem 1.5rem;
+      padding: 0 0 1rem; /* el padding lateral lo da el container */
+      min-height: 0;
     }
 
     .chat-box {
@@ -45,14 +54,21 @@
       min-height: 100%;
     }
 
-    /* Barra inferior fija */
+    /* Barra inferior SIN fondo oscuro + un poco más arriba */
     .input-bar {
-      background-color: #020617;
-      border-top: 1px solid #1e293b;
-      padding: 1rem;
+      background: transparent;      /* ✅ sin fondo azul oscuro */
+      border-top: none;             /* ✅ sin línea */
+      padding: 0;                   /* el padding lo maneja el container interno */
+      margin-bottom: 18px;          /* ✅ la sube un poco */
     }
 
-    /* 🔥 Agentic AI */
+    /* Card visual de la barra (opcional, liviana) */
+    .input-shell {
+      background: transparent;      /* ✅ sin fondo */
+      padding: 0;
+    }
+
+    /* 🔥 Agentic AI destacado */
     .mode-pill {
       width: 100%;
       height: 3rem;
@@ -88,39 +104,43 @@
       <h1>🎬 Movie Assistant</h1>
     </div>
 
-    <!-- Respuesta (zona alta) -->
-    <div class="chat-area">
-      <div id="response" class="chat-box">
-        Acá va a aparecer la respuesta…
+    <!-- ✅ MISMO ANCHO: chat + barra dentro del mismo container -->
+    <div class="container main">
+
+      <!-- Respuesta (zona alta) -->
+      <div class="chat-area">
+        <div id="response" class="chat-box">
+          Acá va a aparecer la respuesta…
+        </div>
       </div>
-    </div>
 
-    <!-- Barra inferior (tipo ChatGPT) -->
-    <div class="input-bar">
-      <div class="container">
-        <div class="row g-2 align-items-center">
-          <div class="col-md-3">
-            <div class="mode-pill">Agentic AI</div>
-          </div>
+      <!-- Barra inferior -->
+      <div class="input-bar">
+        <div class="input-shell">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-3">
+              <div class="mode-pill">Agentic AI</div>
+            </div>
 
-          <div class="col-md-7">
-            <input
-              id="query"
-              type="text"
-              class="form-control"
-              placeholder="Hablemos de cine"
-            />
-          </div>
+            <div class="col-md-7">
+              <input
+                id="query"
+                type="text"
+                class="form-control"
+                placeholder="Preguntá por una película (ej: ¿Quiénes actuaban en Inception?)"
+              />
+            </div>
 
-          <div class="col-md-2 d-grid">
-            <button id="sendBtn" class="btn btn-primary btn-send">
-              Enviar
-            </button>
+            <div class="col-md-2 d-grid">
+              <button id="sendBtn" class="btn btn-primary btn-send">
+                Enviar
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
+    </div>
   </div>
 
   <script>
@@ -129,7 +149,10 @@
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
       if (!sid) {
-        sid = crypto.randomUUID();
+        sid = (crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Date.now()) + "-" + Math.random().toString(16).slice(2)
+        );
         localStorage.setItem("cine_session_id", sid);
       }
       return sid;
@@ -166,7 +189,8 @@
     }
 
     document.getElementById("sendBtn").addEventListener("click", sendMessage);
-    document.getElementById("query").addEventListener("keydown", e => {
+
+    document.getElementById("query").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         sendMessage();
