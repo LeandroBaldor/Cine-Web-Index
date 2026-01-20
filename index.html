@@ -13,7 +13,7 @@
 
   <style>
     body {
-      background-color: #0f172a;
+      background-color: #0D1117; /* (1) */
       color: #e5e7eb;
       height: 100vh;
       margin: 0;
@@ -28,6 +28,7 @@
 
     .header {
       padding: 1.5rem;
+      text-align: center; /* (4) */
     }
 
     /* Contenedor principal */
@@ -46,12 +47,19 @@
       padding-bottom: 1rem;
     }
 
-    /* Fondo azul oscuro del chat */
+    /* (2) Rectángulo donde va el chat */
     .chat-box {
-      background-color: #075E54;
+      background-color: #151b23;
       border-radius: 12px;
       padding: 18px;
-      border: 1px solid #0b1220;
+      border: 1px solid rgba(255, 255, 255, 0.18); /* línea blanca muy fina */
+    }
+
+    /* Texto inicial (no burbuja) (6) */
+    .empty-state {
+      color: #9aa4b2;
+      text-align: center;
+      padding: 18px 10px;
     }
 
     /* Lista de mensajes */
@@ -73,10 +81,10 @@
       border: 1px solid rgba(255,255,255,0.06);
     }
 
-    /* Usuario (izquierda) */
+    /* (3) Usuario (izquierda) */
     .bubble.user {
       align-self: flex-start;
-      background: #111827;
+      background: #262c36;
       color: #e5e7eb;
       border-top-left-radius: 6px;
     }
@@ -84,7 +92,7 @@
     /* Asistente (derecha) */
     .bubble.assistant {
       align-self: flex-end;
-      background: #005c4b;          /* verde WhatsApp */
+      background: #005c4b;
       color: #e7fffa;
       border-top-right-radius: 6px;
     }
@@ -95,11 +103,12 @@
       font-style: italic;
     }
 
-    /* Barra inferior */
+    /* (5) Barra inferior más arriba, sin tocar el chat */
     .input-bar {
       background: transparent;
       padding: 0;
-      margin-bottom: 18px;
+      margin-top: 12px;     /* separa del rectángulo del chat */
+      margin-bottom: 42px;  /* la sube */
     }
 
     /* Agentic AI */
@@ -135,7 +144,7 @@
 
     <!-- Header -->
     <div class="header">
-      <h1>🎬 Movie Assistant</h1>
+      <h1 class="m-0">🎬 Movie Assistant</h1>
     </div>
 
     <!-- Chat + input -->
@@ -144,11 +153,12 @@
       <!-- Chat -->
       <div class="chat-area">
         <div class="chat-box">
-          <div id="messages" class="messages">
-            <div class="bubble assistant">
-              ¿Hablamos de cine? ¿Qué te gustaría saber?
-            </div>
+          <!-- (6) Mensaje inicial NO es burbuja -->
+          <div id="emptyState" class="empty-state">
+            ¿Hablamos de cine? ¿Qué te gustaría saber?
           </div>
+
+          <div id="messages" class="messages"></div>
         </div>
       </div>
 
@@ -197,19 +207,17 @@
 
     function scrollToBottom() {
       const chatArea = document.querySelector(".chat-area");
+      if (!chatArea) return;
       chatArea.scrollTop = chatArea.scrollHeight;
     }
 
     function appendMessage(role, text, extraClass = "") {
       const messages = document.getElementById("messages");
-
       const bubble = document.createElement("div");
       bubble.className = `bubble ${role} ${extraClass}`.trim();
       bubble.textContent = text;
-
       messages.appendChild(bubble);
       scrollToBottom();
-
       return bubble;
     }
 
@@ -218,6 +226,10 @@
       const text = input.value.trim();
       if (!text) return;
 
+      // (6) sacar el mensaje inicial al primer envío
+      const empty = document.getElementById("emptyState");
+      if (empty) empty.remove();
+
       // Mensaje usuario
       appendMessage("user", text);
 
@@ -225,11 +237,7 @@
       input.focus();
 
       // Mensaje asistente cargando
-      const loadingBubble = appendMessage(
-        "assistant",
-        "⏳ Buscando...",
-        "loading"
-      );
+      const loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
 
       try {
         const res = await fetch(API_URL, {
