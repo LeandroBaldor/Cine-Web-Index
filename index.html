@@ -23,6 +23,7 @@
       padding: 20px;
       min-height: 300px;
       white-space: pre-line;
+      margin-bottom: 1.5rem;
     }
 
     /* 🔥 Consultas IA destacado */
@@ -57,7 +58,13 @@
   <div class="container py-5">
     <h1 class="mb-4">🎬 Movie Assistant</h1>
 
-    <div class="card p-4 mb-4 bg-dark text-light">
+    <!-- 🔼 RESPUESTA ARRIBA -->
+    <div id="response" class="chat-box">
+      Acá va a aparecer la respuesta…
+    </div>
+
+    <!-- 🔽 INPUT + BOTÓN ABAJO -->
+    <div class="card p-4 bg-dark text-light">
       <div class="row g-2 align-items-center">
         <div class="col-md-3">
           <div class="mode-pill">Agentic AI</div>
@@ -68,7 +75,7 @@
             id="query"
             type="text"
             class="form-control"
-            placeholder="Preguntá por una película (ej: ¿Quiénes actuaban en Inception?)"
+            placeholder="Hablemos de cine"
           />
         </div>
 
@@ -78,10 +85,6 @@
           </button>
         </div>
       </div>
-    </div>
-
-    <div id="response" class="chat-box">
-      Acá va a aparecer la respuesta…
     </div>
   </div>
 
@@ -123,11 +126,6 @@
         });
 
         const data = await res.json();
-
-        if (!data.ok) {
-          responseBox.textContent = "❌ Error: " + (data.error || "Error desconocido");
-          return;
-        }
 
         responseBox.textContent = data.answer || "Sin resultados.";
         input.value = "";
