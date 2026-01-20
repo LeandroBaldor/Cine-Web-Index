@@ -30,7 +30,7 @@
       padding: 1.5rem;
     }
 
-    /* Contenedor principal (mismo ancho chat + barra) */
+    /* Contenedor principal */
     .main {
       flex: 1;
       display: flex;
@@ -77,33 +77,33 @@
     /* Usuario (izquierda) */
     .bubble.user {
       align-self: flex-start;
-      background: #111827; /* gris oscuro */
+      background: #111827;
       color: #e5e7eb;
       border-top-left-radius: 6px;
     }
 
-    /* Modelo (derecha) */
+    /* Asistente (derecha) */
     .bubble.assistant {
       align-self: flex-end;
-      background: #1f2937; /* un toque distinto */
+      background: #1f2937;
       color: #e5e7eb;
       border-top-right-radius: 6px;
     }
 
-    /* Texto chico para “cargando” */
+    /* Cargando */
     .bubble.loading {
       opacity: 0.9;
       font-style: italic;
     }
 
-    /* Barra inferior (sin fondo, un poco más arriba) */
+    /* Barra inferior */
     .input-bar {
       background: transparent;
       padding: 0;
-      margin-bottom: 18px; /* sube un poco la barra */
+      margin-bottom: 18px;
     }
 
-    /* 🔥 Agentic AI */
+    /* Agentic AI */
     .mode-pill {
       width: 100%;
       height: 3rem;
@@ -120,7 +120,7 @@
       text-transform: uppercase;
     }
 
-    /* 🔥 Botón ENVIAR */
+    /* Botón */
     .btn-send {
       height: 3rem;
       font-weight: 800;
@@ -139,14 +139,16 @@
       <h1>🎬 Movie Assistant</h1>
     </div>
 
-    <!-- Mismo ancho para chat + barra -->
+    <!-- Chat + input -->
     <div class="container main">
 
       <!-- Chat -->
       <div class="chat-area">
         <div class="chat-box">
           <div id="messages" class="messages">
-            <div class="bubble assistant">¿Hablamos de cine? ¿Que te gustaría saber?</div>
+            <div class="bubble assistant">
+              ¿Hablamos de cine? ¿Qué te gustaría saber?
+            </div>
           </div>
         </div>
       </div>
@@ -178,8 +180,9 @@
     </div>
   </div>
 
+  <!-- ================= JS ================= -->
   <script>
-        const API_URL = "https://cine-app-otdv.onrender.com/chat";
+    const API_URL = "https://cine-app-otdv.onrender.com/chat";
 
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
@@ -193,17 +196,41 @@
       return sid;
     }
 
+    function scrollToBottom() {
+      const chatArea = document.querySelector(".chat-area");
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function appendMessage(role, text, extraClass = "") {
+      const messages = document.getElementById("messages");
+
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${role} ${extraClass}`.trim();
+      bubble.textContent = text;
+
+      messages.appendChild(bubble);
+      scrollToBottom();
+
+      return bubble;
+    }
+
     async function sendMessage() {
       const input = document.getElementById("query");
       const text = input.value.trim();
-      const responseBox = document.getElementById("response");
+      if (!text) return;
 
-      if (!text) {
-        responseBox.textContent = "❌ Ingresá un valor.";
-        return;
-      }
+      // Mensaje usuario
+      appendMessage("user", text);
 
-      responseBox.textContent = "⏳ Buscando...";
+      input.value = "";
+      input.focus();
+
+      // Mensaje asistente cargando
+      const loadingBubble = appendMessage(
+        "assistant",
+        "⏳ Buscando...",
+        "loading"
+      );
 
       try {
         const res = await fetch(API_URL, {
@@ -217,10 +244,13 @@
 
         const data = await res.json();
 
-        responseBox.textContent = data.answer || "Sin resultados.";
-        input.value = "";
+        loadingBubble.classList.remove("loading");
+        loadingBubble.textContent = data.answer || "Sin resultados.";
+        scrollToBottom();
       } catch (err) {
-        responseBox.textContent = "❌ Error de conexión con la API.";
+        loadingBubble.classList.remove("loading");
+        loadingBubble.textContent = "❌ Error de conexión con la API.";
+        scrollToBottom();
       }
     }
 
@@ -232,6 +262,8 @@
         sendMessage();
       }
     });
+
+    window.addEventListener("load", scrollToBottom);
   </script>
 </body>
 </html>
