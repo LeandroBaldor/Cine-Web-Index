@@ -179,7 +179,7 @@
   </div>
 
   <script>
-    const API_URL = "https://cine-app-otdv.onrender.com/chat";
+        const API_URL = "https://cine-app-otdv.onrender.com/chat";
 
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
@@ -193,4 +193,45 @@
       return sid;
     }
 
-    function appendMessage(role
+    async function sendMessage() {
+      const input = document.getElementById("query");
+      const text = input.value.trim();
+      const responseBox = document.getElementById("response");
+
+      if (!text) {
+        responseBox.textContent = "❌ Ingresá un valor.";
+        return;
+      }
+
+      responseBox.textContent = "⏳ Buscando...";
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": getSessionId()
+          },
+          body: JSON.stringify({ mode: "consultas", text }),
+        });
+
+        const data = await res.json();
+
+        responseBox.textContent = data.answer || "Sin resultados.";
+        input.value = "";
+      } catch (err) {
+        responseBox.textContent = "❌ Error de conexión con la API.";
+      }
+    }
+
+    document.getElementById("sendBtn").addEventListener("click", sendMessage);
+
+    document.getElementById("query").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html>
