@@ -13,12 +13,13 @@
 
   <style>
     body {
-      background-color: #0D1117;
+      background-color: #0D1117; /* (1) */
       color: #e5e7eb;
       height: 100vh;
       margin: 0;
     }
 
+    /* Layout principal */
     .app {
       display: flex;
       flex-direction: column;
@@ -27,185 +28,171 @@
 
     .header {
       padding: 1.5rem;
-      text-align: center;
+      text-align: center; /* (4) */
     }
 
-    .header h1 {
-      font-weight: 700;
-      font-size: 1.65rem;
-      margin: 0;
-    }
-
-    .content {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      padding: 0 1rem 1rem;
-      min-height: 0;
-    }
-
-    .wrap {
-      width: 100%;
-      max-width: 980px;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      gap: 10px;
-    }
-
-    .chat-box {
-      background-color: #151b23;
-      border-radius: 12px;
-      padding: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
+    /* Contenedor principal */
+    .main {
       flex: 1;
       display: flex;
       flex-direction: column;
       min-height: 0;
     }
 
-    .messages {
+    /* Zona chat (scroll) */
+    .chat-area {
+      flex: 1;
       overflow-y: auto;
       min-height: 0;
       padding-bottom: 1rem;
     }
 
+    /* (2) Rectángulo donde va el chat */
+    .chat-box {
+      background-color: #151b23;
+      border-radius: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.18); /* línea blanca muy fina */
+    }
+
+    /* Texto inicial (no burbuja) (6) */
+    .empty-state {
+      color: #9aa4b2;
+      text-align: center;
+      padding: 18px 10px;
+    }
+
+    /* Lista de mensajes */
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Burbuja base */
     .bubble {
-      padding: 10px 14px;
+      max-width: 78%;
+      padding: 10px 12px;
       border-radius: 14px;
-      margin-bottom: 10px;
-      max-width: 85%;
+      line-height: 1.35;
       white-space: pre-wrap;
       word-wrap: break-word;
-      line-height: 1.25rem;
-      font-size: 0.98rem;
-      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.06);
     }
 
-    .user {
-      margin-left: auto;
-      background: #0f5132;
-      border-color: rgba(255,255,255,0.12);
-    }
-
-    .assistant {
-      margin-right: auto;
+    /* (3) Usuario (izquierda) */
+    .bubble.user {
+      align-self: flex-start;
       background: #262c36;
-      border-color: rgba(255,255,255,0.10);
+      color: #e5e7eb;
+      border-top-left-radius: 6px;
     }
 
-    .loading {
-      opacity: 0.85;
+    /* Asistente (derecha) */
+    .bubble.assistant {
+      align-self: flex-end;
+      background: #005c4b;
+      color: #e7fffa;
+      border-top-right-radius: 6px;
     }
 
+    /* Cargando */
+    .bubble.loading {
+      opacity: 0.9;
+      font-style: italic;
+    }
+
+    /* (5) Barra inferior más arriba, sin tocar el chat */
     .input-bar {
       background: transparent;
       padding: 0;
+      margin-top: 12px;     /* separa del rectángulo del chat */
+      margin-bottom: 42px;  /* la sube */
     }
 
+    /* Agentic AI */
     .mode-pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      height: 40px;
-      border-radius: 999px;
-      padding: 0 14px;
-      background: #0b2a4a;
-      color: #e5e7eb;
-      font-weight: 600;
-      border: 1px solid rgba(255,255,255,0.12);
-      width: 100%;
-    }
+    width: 100%;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1rem;
+    border-radius: 0.5rem;
+    background: linear-gradient(135deg, #0a3069, #0a3069);
+    background-color: #0a3069;
+    border-color: #0a3069;
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
 
-    #query {
-      height: 40px;
-      background: #0D1117;
-      border: 1px solid rgba(255,255,255,0.18);
-      color: #e5e7eb;
-    }
-
-    #query:focus {
-      outline: none;
-      box-shadow: none;
-      border-color: rgba(255,255,255,0.28);
-    }
-
+    /* Botón */
     .btn-send {
-      height: 40px;
-      background: #0b2a4a;
-      border: 1px solid rgba(255,255,255,0.18);
-    }
-
-    .btn-send:hover {
-      background: #08325c;
-      border-color: rgba(255,255,255,0.22);
-    }
-
-    .btn-more {
-      height: 38px;
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.22);
-      color: #e5e7eb;
-    }
-
-    .btn-more:hover {
-      background: rgba(255,255,255,0.06);
+      height: 3rem;
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
   </style>
 </head>
 
 <body>
   <div class="app">
+
+    <!-- Header -->
     <div class="header">
-      <h1>🎬 Movie Assistant</h1>
+      <h1 class="m-0">🎬 Movie Assistant</h1>
     </div>
 
-    <div class="content">
-      <div class="wrap">
+    <!-- Chat + input -->
+    <div class="container main">
 
+      <!-- Chat -->
+      <div class="chat-area">
         <div class="chat-box">
+          <!-- (6) Mensaje inicial NO es burbuja -->
+          <div id="emptyState" class="empty-state">
+            ¿Hablamos de cine? ¿Qué te gustaría saber?
+          </div>
+
           <div id="messages" class="messages"></div>
         </div>
+      </div>
 
-        <!-- Botón VER MÁS (oculto por defecto) -->
-        <div class="d-grid">
-          <button id="moreBtn" class="btn btn-more" style="display:none;">
-            Ver más
-          </button>
-        </div>
+      <!-- Barra inferior -->
+      <div class="input-bar">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-3">
+            <div class="mode-pill">Agentic AI</div>
+          </div>
 
-        <!-- Barra inferior -->
-        <div class="input-bar">
-          <div class="row g-2 align-items-center">
-            <div class="col-md-3">
-              <div class="mode-pill">Agentic AI</div>
-            </div>
+          <div class="col-md-7">
+            <input
+              id="query"
+              type="text"
+              class="form-control"
+              placeholder="Escribií lo que quieras"
+            />
+          </div>
 
-            <div class="col-md-7">
-              <input
-                id="query"
-                class="form-control"
-                placeholder="Escribí tu consulta..."
-                autocomplete="off"
-              />
-            </div>
-
-            <div class="col-md-2 d-grid">
-              <button id="sendBtn" class="btn btn-primary btn-send">
-                Enviar
-              </button>
-            </div>
+          <div class="col-md-2 d-grid">
+            <button id="sendBtn" class="btn btn-primary btn-send">
+              Enviar
+            </button>
           </div>
         </div>
-
       </div>
-    </div>
 
+    </div>
   </div>
 
+  <!-- ================= JS ================= -->
   <script>
     const API_URL = "https://cine-app-otdv.onrender.com/chat";
-    const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
 
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
@@ -220,39 +207,37 @@
     }
 
     function scrollToBottom() {
-      const messages = document.getElementById("messages");
-      messages.scrollTop = messages.scrollHeight;
+      const chatArea = document.querySelector(".chat-area");
+      if (!chatArea) return;
+      chatArea.scrollTop = chatArea.scrollHeight;
     }
 
     function appendMessage(role, text, extraClass = "") {
       const messages = document.getElementById("messages");
-      const div = document.createElement("div");
-      div.className = `bubble ${role} ${extraClass}`.trim();
-      div.textContent = text;
-      messages.appendChild(div);
-      return div;
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${role} ${extraClass}`.trim();
+      bubble.textContent = text;
+      messages.appendChild(bubble);
+      scrollToBottom();
+      return bubble;
     }
 
-    function setMoreVisible(visible) {
-      const btn = document.getElementById("moreBtn");
-      btn.style.display = visible ? "block" : "none";
-    }
-
-    async function sendMessage(forcedText = null) {
+    async function sendMessage() {
       const input = document.getElementById("query");
-      const text = (forcedText !== null) ? forcedText : (input.value || "").trim();
+      const text = input.value.trim();
       if (!text) return;
 
-      // si es comando interno, no lo mostramos como mensaje del usuario
-      const isInternal = (text === MORE_COMMAND);
+      // (6) sacar el mensaje inicial al primer envío
+      const empty = document.getElementById("emptyState");
+      if (empty) empty.remove();
 
-      if (!isInternal) {
-        appendMessage("user", text);
-      }
+      // Mensaje usuario
+      appendMessage("user", text);
 
       input.value = "";
       input.focus();
 
+      // Mensaje asistente cargando
       const loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
 
       try {
@@ -269,20 +254,15 @@
 
         loadingBubble.classList.remove("loading");
         loadingBubble.textContent = data.answer || "Sin resultados.";
-
-        // mostrar/ocultar botón "Ver más"
-        setMoreVisible(Boolean(data.has_more));
-
         scrollToBottom();
       } catch (err) {
         loadingBubble.classList.remove("loading");
         loadingBubble.textContent = "❌ Error de conexión con la API.";
-        setMoreVisible(false);
         scrollToBottom();
       }
     }
 
-    document.getElementById("sendBtn").addEventListener("click", () => sendMessage());
+    document.getElementById("sendBtn").addEventListener("click", sendMessage);
 
     document.getElementById("query").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -291,14 +271,7 @@
       }
     });
 
-    document.getElementById("moreBtn").addEventListener("click", () => {
-      sendMessage(MORE_COMMAND);
-    });
-
-    window.addEventListener("load", () => {
-      setMoreVisible(false);
-      scrollToBottom();
-    });
+    window.addEventListener("load", scrollToBottom);
   </script>
 </body>
 </html>
