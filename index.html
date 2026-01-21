@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8" />
   <title>Movie Assistant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Bootstrap -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
 
   <style>
     body {
-      background-color: #0D1117;
-      /* (1) */
+      background-color: #0D1117; /* (1) */
       color: #e5e7eb;
       height: 100vh;
       margin: 0;
@@ -27,8 +28,7 @@
 
     .header {
       padding: 1.5rem;
-      text-align: center;
-      /* (4) */
+      text-align: center; /* (4) */
     }
 
     /* Contenedor principal */
@@ -52,8 +52,7 @@
       background-color: #151b23;
       border-radius: 12px;
       padding: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      /* línea blanca muy fina */
+      border: 1px solid rgba(255, 255, 255, 0.18); /* línea blanca muy fina */
     }
 
     /* Texto inicial (no burbuja) (6) */
@@ -78,8 +77,8 @@
       line-height: 1.35;
       white-space: pre-wrap;
       word-wrap: break-word;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.06);
     }
 
     /* (3) Usuario (izquierda) */
@@ -108,10 +107,8 @@
     .input-bar {
       background: transparent;
       padding: 0;
-      margin-top: 12px;
-      /* separa del rectángulo del chat */
-      margin-bottom: 42px;
-      /* la sube */
+      margin-top: 12px;     /* separa del rectángulo del chat */
+      margin-bottom: 42px;  /* la sube */
     }
 
     /* Agentic AI */
@@ -141,42 +138,12 @@
       text-transform: uppercase;
     }
 
-    /* ===== Desplegable "Ver más" ===== */
-    details.more-details {
-      margin-top: 10px;
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 10px;
-      padding: 8px 12px;
-    }
-
-    details.more-details summary {
-      cursor: pointer;
-      font-weight: 700;
-      list-style: none;
-      user-select: none;
-      color: #e5e7eb;
-    }
-
-    /* Oculta el marcador default */
-    details.more-details summary::-webkit-details-marker {
-      display: none;
-    }
-
-    /* Flechita */
-    details.more-details summary::before {
-      content: "▸";
-      margin-right: 8px;
-    }
-
-    details.more-details[open] summary::before {
-      content: "▾";
-    }
-
-    .more-hint {
-      margin-top: 6px;
-      font-size: 0.9rem;
-      opacity: 0.85;
+    /* ✅ Botón "Ver más" dentro del chat */
+    .btn-more {
+      border-color: rgba(255,255,255,0.22);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
   </style>
 </head>
@@ -201,13 +168,16 @@
           </div>
 
           <div id="messages" class="messages"></div>
+
+          <!-- ✅ Botón Ver más (aparece al final de la filmografía) -->
+          <div id="moreWrap" style="display:none; margin-top:12px; text-align:center;">
+            <button id="moreBtn" type="button" class="btn btn-outline-light btn-more">
+              Ver más
+            </button>
+          </div>
         </div>
       </div>
-      <!-- 🔽 Ver más (desplegable) -->
-      <details id="moreDetails" class="more-details" style="display:none;">
-        <summary>Ver más</summary>
-        <div class="more-hint">Cargando más resultados...</div>
-      </details>
+
       <!-- Barra inferior -->
       <div class="input-bar">
         <div class="row g-2 align-items-center">
@@ -216,7 +186,12 @@
           </div>
 
           <div class="col-md-7">
-            <input id="query" type="text" class="form-control" placeholder="Escribií lo que quieras" />
+            <input
+              id="query"
+              type="text"
+              class="form-control"
+              placeholder="Escribií lo que quieras"
+            />
           </div>
 
           <div class="col-md-2 d-grid">
@@ -232,8 +207,8 @@
 
   <!-- ================= JS ================= -->
   <script>
-    const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
     const API_URL = "https://cine-app-otdv.onrender.com/chat";
+    const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
 
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
@@ -263,29 +238,30 @@
       return bubble;
     }
 
-    async function sendMessage() {
+    function setMoreVisible(visible) {
+      const wrap = document.getElementById("moreWrap");
+      if (!wrap) return;
+      wrap.style.display = visible ? "block" : "none";
+    }
+
+    async function sendMessage(forcedText = null, isInternal = false) {
       const input = document.getElementById("query");
-      const text = input.value.trim();
+      const text = (forcedText !== null ? forcedText : input.value).trim();
       if (!text) return;
 
-      // (6) sacar el mensaje inicial al primer envío
-      const empty = document.getElementById("emptyState");
-      if (empty) empty.remove();
+      // (6) sacar el mensaje inicial al primer envío REAL del usuario
+      if (!isInternal) {
+        const empty = document.getElementById("emptyState");
+        if (empty) empty.remove();
+      }
 
-      // Mensaje usuario
-      appendMessage("user", text);
+      // Mensaje usuario (solo si NO es interno)
+      if (!isInternal) {
+        appendMessage("user", text);
+      }
 
       input.value = "";
       input.focus();
-
-      // mostrar / ocultar el desplegable
-      function setMoreVisible(visible) {
-        const d = document.getElementById("moreDetails");
-        if (!d) return;
-        d.style.display = visible ? "block" : "none";
-        if (!visible) d.open = false;
-      }
-
 
       // Mensaje asistente cargando
       const loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
@@ -304,16 +280,22 @@
 
         loadingBubble.classList.remove("loading");
         loadingBubble.textContent = data.answer || "Sin resultados.";
+
+        // ✅ Mostrar / ocultar botón "Ver más" según backend
         setMoreVisible(Boolean(data.has_more));
+
         scrollToBottom();
+        return data;
       } catch (err) {
         loadingBubble.classList.remove("loading");
         loadingBubble.textContent = "❌ Error de conexión con la API.";
+        setMoreVisible(false);
         scrollToBottom();
+        return { has_more: false };
       }
     }
 
-    document.getElementById("sendBtn").addEventListener("click", sendMessage);
+    document.getElementById("sendBtn").addEventListener("click", () => sendMessage());
 
     document.getElementById("query").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -322,29 +304,23 @@
       }
     });
 
-    window.addEventListener("load", scrollToBottom);
+    // ✅ Click UNA sola vez: trae todo lo que falta
+    document.getElementById("moreBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("moreBtn");
+      btn.disabled = true;
+      btn.textContent = "Cargando...";
 
-    let loadingMore = false;
+      while (true) {
+        const data = await sendMessage(MORE_COMMAND, true);
+        if (!data || !data.has_more) break;
+      }
 
-    document.getElementById("moreDetails").addEventListener("toggle", async (e) => {
-      const d = e.currentTarget;
-      if (!d.open) return;
-      if (loadingMore) return;
-
-      loadingMore = true;
-
-      // Mandamos el comando interno al backend
-      const input = document.getElementById("query");
-      const previousValue = input.value;
-      input.value = MORE_COMMAND;
-      await sendMessage();
-      input.value = previousValue;
-
-      d.open = false;
-      loadingMore = false;
+      setMoreVisible(false);
+      btn.disabled = false;
+      btn.textContent = "Ver más";
     });
 
+    window.addEventListener("load", scrollToBottom);
   </script>
 </body>
-
 </html>
