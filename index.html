@@ -39,12 +39,12 @@
       min-height: 0;
     }
 
-    /* Zona chat (scroll) */
+    /* ✅ Zona chat (scroll). Le dejamos espacio abajo para que NO tape la barra fija */
     .chat-area {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
-      padding-bottom: 1rem;
+      padding-bottom: 110px; /* deja lugar para la barra fija */
     }
 
     /* (2) Rectángulo donde va el chat */
@@ -103,12 +103,16 @@
       font-style: italic;
     }
 
-    /* (5) Barra inferior más arriba, sin tocar el chat */
+    /* ✅ Barra inferior FIJA estilo WhatsApp */
     .input-bar {
-      background: transparent;
-      padding: 0;
+      position: sticky;
+      bottom: 0;
+      z-index: 50;
+      background: #0D1117; /* mismo color del body */
+      padding: 14px 0 18px;
       margin-top: 12px;     /* separa del rectángulo del chat */
-      margin-bottom: 42px;  /* la sube */
+      margin-bottom: 0;     /* IMPORTANTE: no la sube ni la mueve */
+      border-top: 1px solid rgba(255,255,255,0.06);
     }
 
     /* Agentic AI */
@@ -210,11 +214,16 @@
     const API_URL = "https://cine-app-otdv.onrender.com/chat";
     const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
 
-    // ✅ referencia a la burbuja de filmografía para expandirla
+    // referencia a la burbuja de filmografía para expandirla
     let filmographyBubble = null;
 
-    // ✅ comportamiento WhatsApp: pegado abajo SOLO si el usuario está abajo
+    // ✅ “modo WhatsApp”: si el usuario está abajo, seguimos abajo.
+    // si el usuario sube, NO lo empujamos.
     let stickToBottom = true;
+
+    // ✅ Durante "Ver más": NO auto-scroll nunca y preservamos el scrollTop
+    let expandingFilmography = false;
+    let expandScrollTop = 0;
 
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
@@ -244,22 +253,21 @@
       chatArea.scrollTop = chatArea.scrollHeight;
     }
 
-    // ✅ Hook: si el usuario scrollea hacia arriba, desactivamos el auto-scroll
-    const chatAreaEl = getChatArea();
-    if (chatAreaEl) {
-      chatAreaEl.addEventListener("scroll", () => {
+    // ✅ Detecta si el user está leyendo arriba o abajo
+    window.addEventListener("load", () => {
+      const ca = getChatArea();
+      if (!ca) return;
+
+      // arrancamos mostrando lo último
+      stickToBottom = true;
+      scrollToBottom();
+
+      ca.addEventListener("scroll", () => {
+        // si estamos expandiendo, no tocamos stickToBottom
+        if (expandingFilmography) return;
         stickToBottom = isNearBottom();
       });
-    } else {
-      // fallback: en load lo volvemos a enganchar
-      window.addEventListener("load", () => {
-        const ca = getChatArea();
-        if (!ca) return;
-        ca.addEventListener("scroll", () => {
-          stickToBottom = isNearBottom();
-        });
-      });
-    }
+    });
 
     function appendMessage(role, text, extraClass = "") {
       const messages = document.getElementById("messages");
@@ -268,8 +276,8 @@
       bubble.textContent = text;
       messages.appendChild(bubble);
 
-      // ✅ WhatsApp: solo autoscroll si el usuario estaba abajo
-      if (stickToBottom) scrollToBottom();
+      // ✅ solo autoscroll si corresponde (y NO estamos expandiendo)
+      if (!expandingFilmography && stickToBottom) scrollToBottom();
 
       return bubble;
     }
@@ -280,21 +288,18 @@
       wrap.style.display = visible ? "block" : "none";
     }
 
-    function preserveScrollWhileNotSticky(applyChangeFn) {
-      const chatArea = getChatArea();
-      if (!chatArea) return applyChangeFn();
+    function preserveScrollIfExpanding(applyFn) {
+      const ca = getChatArea();
+      if (!ca) return applyFn();
 
-      // Si el usuario está abajo, no hace falta preservar: vamos al final.
-      if (stickToBottom) {
-        applyChangeFn();
-        scrollToBottom();
+      if (expandingFilmography) {
+        // mantiene el scroll EXACTO donde estaba cuando apretaste "Ver más"
+        applyFn();
+        ca.scrollTop = expandScrollTop;
         return;
       }
 
-      // Si el usuario está leyendo arriba, preservamos el scrollTop visual
-      const prevScrollTop = chatArea.scrollTop;
-      applyChangeFn();
-      chatArea.scrollTop = prevScrollTop;
+      applyFn();
     }
 
     async function sendMessage(forcedText = null, isInternal = false) {
@@ -319,11 +324,13 @@
       // Mensaje asistente cargando
       let loadingBubble;
 
-      // ✅ Si es "Ver más" y ya existe burbuja de filmografía, reutilizamos ESA misma
+      // Si es "Ver más" y ya existe burbuja de filmografía, reutilizamos ESA misma
       if (isInternal && filmographyBubble) {
         loadingBubble = filmographyBubble;
-        preserveScrollWhileNotSticky(() => {
+
+        preserveScrollIfExpanding(() => {
           loadingBubble.classList.add("loading");
+          // hint (sin crear otra burbuja)
           if (!loadingBubble.textContent.includes("⏳ Cargando más...")) {
             loadingBubble.textContent += "\n\n⏳ Cargando más...";
           }
@@ -344,16 +351,15 @@
 
         const data = await res.json();
 
-        // ✅ Actualizaciones de texto sin “romper” el scroll si el usuario está arriba
-        preserveScrollWhileNotSticky(() => {
+        preserveScrollIfExpanding(() => {
           loadingBubble.classList.remove("loading");
 
-          // Primera respuesta de filmografía (paginada) => guardamos referencia a esa burbuja
+          // Primera respuesta con filmografía paginada => guardamos referencia a esa burbuja
           if (!isInternal && data.has_more) {
             loadingBubble.textContent = data.answer || "Sin resultados.";
             filmographyBubble = loadingBubble;
           }
-          // "Ver más" => expandimos MISMA burbuja
+          // "Ver más" => expandimos MISMA burbuja (sin auto-scroll)
           else if (isInternal && filmographyBubble) {
             filmographyBubble.textContent = data.answer || filmographyBubble.textContent;
           }
@@ -366,12 +372,12 @@
 
         setMoreVisible(Boolean(data.has_more));
 
-        // ✅ WhatsApp: si estás abajo, te deja viendo lo último; si estás arriba, no te empuja
-        if (stickToBottom) scrollToBottom();
+        // ✅ WhatsApp: si no estamos expandiendo y estamos abajo -> mantener abajo
+        if (!expandingFilmography && stickToBottom) scrollToBottom();
 
         return data;
       } catch (err) {
-        preserveScrollWhileNotSticky(() => {
+        preserveScrollIfExpanding(() => {
           loadingBubble.classList.remove("loading");
 
           if (isInternal && filmographyBubble) {
@@ -382,7 +388,8 @@
         });
 
         setMoreVisible(false);
-        if (stickToBottom) scrollToBottom();
+
+        if (!expandingFilmography && stickToBottom) scrollToBottom();
 
         return { has_more: false };
       }
@@ -397,28 +404,29 @@
       }
     });
 
-    // ✅ Click UNA sola vez: trae todo lo que falta y lo pone en la MISMA burbuja
+    // ✅ Click UNA sola vez: trae todo lo que falta, expande la MISMA burbuja,
+    // y NO te mueve el scroll (como "Leer más" de WhatsApp).
     document.getElementById("moreBtn").addEventListener("click", async () => {
       const btn = document.getElementById("moreBtn");
       btn.disabled = true;
       btn.textContent = "Cargando...";
 
-      // Si el usuario tocó ver más, normalmente quiere ver lo último abajo
-      stickToBottom = true;
+      const ca = getChatArea();
+      expandingFilmography = true;
+      expandScrollTop = ca ? ca.scrollTop : 0; // guardamos la posición
 
       while (true) {
         const data = await sendMessage(MORE_COMMAND, true);
         if (!data || !data.has_more) break;
       }
 
+      expandingFilmography = false;
+
+      // al terminar: NO auto-scroll. el usuario decide bajar.
       setMoreVisible(false);
+
       btn.disabled = false;
       btn.textContent = "Ver más";
-    });
-
-    window.addEventListener("load", () => {
-      stickToBottom = true;
-      scrollToBottom();
     });
   </script>
 </body>
