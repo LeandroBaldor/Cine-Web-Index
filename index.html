@@ -113,21 +113,21 @@
 
     /* Agentic AI */
     .mode-pill {
-      width: 100%;
-      height: 3rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 1rem;
-      border-radius: 0.5rem;
-      background: linear-gradient(135deg, #0a3069, #0a3069);
-      background-color: #0a3069;
-      border-color: #0a3069;
-      font-weight: 800;
-      font-size: 1.2rem;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
+    width: 100%;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1rem;
+    border-radius: 0.5rem;
+    background: linear-gradient(135deg, #0a3069, #0a3069);
+    background-color: #0a3069;
+    border-color: #0a3069;
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
 
     /* Botón */
     .btn-send {
@@ -169,7 +169,7 @@
 
           <div id="messages" class="messages"></div>
 
-          <!-- ✅ Botón Ver más (aparece al final de la filmografía) -->
+          <!-- ✅ Botón Ver más (expande la MISMA burbuja de filmografía) -->
           <div id="moreWrap" style="display:none; margin-top:12px; text-align:center;">
             <button id="moreBtn" type="button" class="btn btn-outline-light btn-more">
               Ver más
@@ -209,6 +209,9 @@
   <script>
     const API_URL = "https://cine-app-otdv.onrender.com/chat";
     const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
+
+    // ✅ referencia a la burbuja de filmografía para expandirla
+    let filmographyBubble = null;
 
     function getSessionId() {
       let sid = localStorage.getItem("cine_session_id");
@@ -264,7 +267,19 @@
       input.focus();
 
       // Mensaje asistente cargando
-      const loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
+      let loadingBubble;
+
+      // ✅ Si es "Ver más" y ya existe burbuja de filmografía, reutilizamos ESA misma
+      if (isInternal && filmographyBubble) {
+        loadingBubble = filmographyBubble;
+        loadingBubble.classList.add("loading");
+        // agregamos un hint visual sin crear otra burbuja
+        if (!loadingBubble.textContent.includes("⏳ Cargando más...")) {
+          loadingBubble.textContent += "\n\n⏳ Cargando más...";
+        }
+      } else {
+        loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
+      }
 
       try {
         const res = await fetch(API_URL, {
@@ -279,16 +294,38 @@
         const data = await res.json();
 
         loadingBubble.classList.remove("loading");
-        loadingBubble.textContent = data.answer || "Sin resultados.";
 
-        // ✅ Mostrar / ocultar botón "Ver más" según backend
+        // ✅ Primera respuesta con filmografía paginada: guardamos la referencia a esa burbuja
+        if (!isInternal && data.has_more) {
+          loadingBubble.textContent = data.answer || "Sin resultados.";
+          filmographyBubble = loadingBubble;
+        }
+        // ✅ "Ver más": expandimos la MISMA burbuja (reemplazando el texto por el más largo)
+        else if (isInternal && filmographyBubble) {
+          filmographyBubble.textContent = data.answer || filmographyBubble.textContent;
+        }
+        // ✅ Mensajes normales
+        else {
+          loadingBubble.textContent = data.answer || "Sin resultados.";
+          // si el user cambia de tema, evitamos que "Ver más" toque una burbuja vieja
+          if (!data.has_more) {
+            filmographyBubble = null;
+          }
+        }
+
+        // ✅ Mostrar / ocultar botón
         setMoreVisible(Boolean(data.has_more));
 
         scrollToBottom();
         return data;
       } catch (err) {
         loadingBubble.classList.remove("loading");
-        loadingBubble.textContent = "❌ Error de conexión con la API.";
+        if (isInternal && filmographyBubble) {
+          // no romper la burbuja: removemos el hint si hubo error
+          filmographyBubble.textContent = filmographyBubble.textContent.replace("\n\n⏳ Cargando más...", "");
+        } else {
+          loadingBubble.textContent = "❌ Error de conexión con la API.";
+        }
         setMoreVisible(false);
         scrollToBottom();
         return { has_more: false };
@@ -304,7 +341,7 @@
       }
     });
 
-    // ✅ Click UNA sola vez: trae todo lo que falta
+    // ✅ Click UNA sola vez: trae todo lo que falta y lo pone en la MISMA burbuja
     document.getElementById("moreBtn").addEventListener("click", async () => {
       const btn = document.getElementById("moreBtn");
       btn.disabled = true;
