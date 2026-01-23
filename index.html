@@ -1,638 +1,443 @@
-import os
-import re
-import uuid
-import requests
-from fastapi import FastAPI, Header
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
-# =========================
-# Config
-# =========================
-OMDB_API_KEY = os.getenv("OMDB_API_KEY", "").strip()
-TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
-
-OMDB_BASE = "https://www.omdbapi.com/"
-TMDB_BASE = "https://api.themoviedb.org/3"
-
-# Wikipedia
-WIKI_LANG_PRIMARY = (os.getenv("WIKI_LANG_PRIMARY", "es") or "es").strip()
-WIKI_LANG_FALLBACK = (os.getenv("WIKI_LANG_FALLBACK", "en") or "en").strip()
-WIKI_USER_AGENT = os.getenv(
-    "WIKI_USER_AGENT",
-    "MovieAssistant/1.0 (contact: leandrojavierbaldor@gmail.com)",
-).strip()
-
-app = FastAPI(
-    title="Cine Assistant API",
-    version="debug-merge-safejson+filmography+helpuser+presentacion+username+filmography_choice_bio_or_movie+name_flow_messages_bubbles+2026-01",
-)
-
-# ✅ CORS para GitHub Pages + local
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://leandrobaldor.github.io",
-        "http://localhost:5500",
-        "http://127.0.0.1:5500",
-        "http://localhost:3000",
-    ],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# =========================
-# Schemas
-# =========================
-class ChatRequest(BaseModel):
-    mode: str
-    text: str
-
-# =========================
-# Context Store (RAM only)
-# =========================
-_ctx_ram: dict[str, dict] = {}
-
-def _ctx_get(sid: str) -> dict:
-    return _ctx_ram.get(sid, {})
-
-def _ctx_set(sid: str, ctx: dict):
-    _ctx_ram[sid] = ctx
-
-# =========================
-# Utils
-# =========================
-def _clean(s: str | None) -> str:
-    if not s:
-        return ""
-    return re.sub(r"[?¿!¡.,;:]+$", "", s).strip()
-
-def _normalize(s: str) -> str:
-    s = (s or "").strip().lower()
-    s = (
-        s.replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-    )
-    return re.sub(r"\s+", " ", s)
-
-def _extract_after_de(text: str) -> str:
-    m = re.search(r"\bde\s+(.+)$", text, flags=re.IGNORECASE)
-    return m.group(1).strip() if m else text.strip()
-
-def _looks_like_new_question(tl: str) -> bool:
-    return (" " in tl) or (len(tl) > 5)
-
-def _as_int_year(date_str: str | None) -> int:
-    if not date_str:
-        return 0
-    m = re.match(r"^(\d{4})-", date_str)
-    return int(m.group(1)) if m else 0
-
-def _is_yes(text: str) -> bool:
-    return _normalize(text) in ["si", "sí", "s", "yes", "ok", "dale", "claro"]
-
-def _is_no(text: str) -> bool:
-    return _normalize(text) in ["no", "n", "nop"]
-
-def _is_greeting(text: str) -> bool:
-    t = _normalize(text)
-    if not t:
-        return False
-
-    patterns = [
-        r"\bhola+\b",
-        r"\bbuen(?:os|as)?\s*(?:dia|dias|tardes|noches)\b",
-        r"\bcomo\s+estas\b",
-        r"\bque\s+tal\b",
-        r"\btodo\s+bien\b",
-        r"\bcomo\s+va\b",
-        r"\bcomo\s+andas\b",
-        r"\bbuenas\b",
-        r"\bhey\b",
-        r"\bhi\b",
-        r"\bhello\b",
-    ]
-    return any(re.search(p, t, flags=re.IGNORECASE) for p in patterns)
-
-def _get_user_name(ctx: dict) -> str:
-    return (ctx.get("user_name") or "").strip()
-
-def _n(ctx: dict) -> str:
-    u = _get_user_name(ctx)
-    return f" {u}" if u else ""
-
-def _soft_reset_keep_name(ctx: dict) -> dict:
-    keep = {}
-    if ctx.get("user_name"):
-        keep["user_name"] = ctx["user_name"]
-    return keep
-
-def _thanks(ctx: dict) -> str:
-    u = _get_user_name(ctx)
-    return f"Muchas gracias {u} por visitar Movie Assistant!" if u else "Muchas gracias por visitar Movie Assistant!"
-
-def _welcome_menu(ctx: dict) -> str:
-    u = _get_user_name(ctx) or "amig@"
-    return f"¿Que te interesa que veamos, {u}? ¿Una película? ¿Algun Director/ra o Actor/ Actriz? ¿Recomendaciones de películas?"
-
-def _filmography_followup_question(ctx: dict) -> str:
-    u = _get_user_name(ctx) or ""
-    return (
-        f"¿En que otra cosa te puedo ayudar {u}? Te puedo pasar más info sobre alguna película en particular de la filmografía "
-        f"o la biografía del Director/ra. ¿Que te interesa más?"
-    ).strip()
-
-def _after_detail_continue(ctx: dict) -> str:
-    u = _get_user_name(ctx) or ""
-    return (
-        f"¿Te interesa ver algo más {u}? ¿Otra película? ¿Algún Director/ra o Actor/Actriz? ¿Alguna recomendación de pelis? / "
-        "Pone SI para continuar o  NO"
-    ).strip()
-
-def _parse_filmography_lines_to_items(filmography_list: str) -> list[dict]:
-    items: list[dict] = []
-    for raw in (filmography_list or "").splitlines():
-        line = raw.strip()
-        if not line.startswith("-"):
-            continue
-        line = line.lstrip("-").strip()
-        m = re.match(r"^(.*?)\s*\((\d{4})\)\s*$", line)
-        if m:
-            title = (m.group(1) or "").strip()
-            year = (m.group(2) or "").strip()
-        else:
-            title = line.strip()
-            year = None
-        if title:
-            items.append({"title": title, "year": year})
-    return items
-
-def _pick_filmography_movie_from_text(user_text: str, items: list[dict]) -> dict | None:
-    if not user_text or not items:
-        return None
-    tnorm = _normalize(user_text)
-    best = None
-    best_len = -1
-    for it in items:
-        title = (it.get("title") or "").strip()
-        if not title:
-            continue
-        key = _normalize(title)
-        if key and key in tnorm:
-            if len(key) > best_len:
-                best_len = len(key)
-                best = it
-    return best
-
-def _bundle(answer: str, messages: list[str] | None = None) -> dict:
-    msgs = [m for m in (messages or []) if isinstance(m, str) and m.strip()]
-    return {"answer": (answer or "").strip(), "messages": msgs}
-
-# =========================
-# ✅ SAFE JSON
-# =========================
-def _safe_json(resp: requests.Response, label: str) -> dict:
-    try:
-        return resp.json()
-    except Exception:
-        txt = (resp.text or "")[:200].replace("\n", " ")
-        print(f"[HTTP-JSON-ERROR] {label} status={resp.status_code} body='{txt}'")
-        return {}
-
-# =========================
-# DISAMBIGUATION - selection token
-# =========================
-def _extract_choice_letter(text: str) -> str | None:
-    if not text:
-        return None
-    s = text.strip()
-    if not s:
-        return None
-
-    i = 1 if s.startswith("(") and len(s) > 1 else 0
-    ch = s[i]
-
-    if ch.isalpha():
-        return ch.upper()
-
-    if ch.isdigit():
-        m = re.match(r"^\(?\s*(\d{1,2})", s)
-        return m.group(1) if m else None
-
-    return None
-
-# =========================
-# OMDb (IMDb via OMDb)
-# =========================
-def omdb_get_by_id(imdb_id: str) -> dict | None:
-    if not OMDB_API_KEY or not imdb_id:
-        return None
-    r = requests.get(
-        OMDB_BASE,
-        params={"apikey": OMDB_API_KEY, "i": imdb_id, "plot": "short"},
-        timeout=15,
-    )
-    data = _safe_json(r, "omdb_get_by_id")
-    if not isinstance(data, dict) or data.get("Response") != "True":
-        return None
-    return data
-
-def omdb_get_by_title(title: str, year: str | None = None) -> dict | None:
-    if not OMDB_API_KEY or not title:
-        return None
-    params = {"apikey": OMDB_API_KEY, "t": title, "plot": "short"}
-    if year:
-        params["y"] = year
-    r = requests.get(OMDB_BASE, params=params, timeout=15)
-    data = _safe_json(r, "omdb_get_by_title")
-    if not isinstance(data, dict) or data.get("Response") != "True":
-        return None
-    return data
-
-def omdb_search_movies(query: str, max_items: int = 10) -> list[dict]:
-    if not OMDB_API_KEY:
-        return []
-    r = requests.get(
-        OMDB_BASE,
-        params={"apikey": OMDB_API_KEY, "s": query, "type": "movie", "page": 1},
-        timeout=15,
-    )
-    data = _safe_json(r, "omdb_search_movies")
-    if not isinstance(data, dict) or data.get("Response") != "True":
-        return []
-    results = data.get("Search") or []
-    return results[:max_items] if isinstance(results, list) else []
-
-def format_movie_details(det: dict) -> str:
-    title = det.get("Title") or "Sin título"
-    year = det.get("Year") or "s/f"
-    genre = det.get("Genre") or "s/d"
-    actors = det.get("Actors") or "s/d"
-    rating = det.get("imdbRating") or "s/d"
-
-    return (
-        f"🎬 {title}\n"
-        f"📅 Año: {year}\n"
-        f"🎭 Género: {genre}\n"
-        f"👥 Elenco: {actors}\n"
-        f"⭐ IMDb: {rating}"
-    )
-
-# =========================
-# TMDb (Movies)
-# =========================
-def tmdb_search_multi(query: str) -> list[dict]:
-    if not TMDB_API_KEY:
-        return []
-    r = requests.get(
-        f"{TMDB_BASE}/search/multi",
-        params={"api_key": TMDB_API_KEY, "query": query},
-        timeout=15,
-    )
-    data = _safe_json(r, "tmdb_search_multi")
-    results = data.get("results", []) if isinstance(data, dict) else []
-    return results if isinstance(results, list) else []
-
-def tmdb_movie_details(movie_id: int) -> dict | None:
-    if not TMDB_API_KEY or not movie_id:
-        return None
-    r = requests.get(
-        f"{TMDB_BASE}/movie/{movie_id}",
-        params={"api_key": TMDB_API_KEY},
-        timeout=15,
-    )
-    data = _safe_json(r, "tmdb_movie_details")
-    return data if isinstance(data, dict) and data else None
-
-def tmdb_movie_credits(movie_id: int) -> dict | None:
-    if not TMDB_API_KEY or not movie_id:
-        return None
-    r = requests.get(
-        f"{TMDB_BASE}/movie/{movie_id}/credits",
-        params={"api_key": TMDB_API_KEY},
-        timeout=15,
-    )
-    data = _safe_json(r, "tmdb_movie_credits")
-    return data if isinstance(data, dict) and data else None
-
-def tmdb_movie_director(movie_id: int) -> str | None:
-    credits = tmdb_movie_credits(movie_id)
-    if not credits:
-        return None
-    crew = credits.get("crew") or []
-    if not isinstance(crew, list):
-        return None
-    for c in crew:
-        if not isinstance(c, dict):
-            continue
-        if (c.get("job") or "").lower() == "director":
-            return c.get("name")
-    return None
-
-# =========================
-# TMDb (People) - Filmography
-# =========================
-def tmdb_search_person(query: str) -> list[dict]:
-    if not TMDB_API_KEY or not query:
-        return []
-    r = requests.get(
-        f"{TMDB_BASE}/search/person",
-        params={"api_key": TMDB_API_KEY, "query": query},
-        timeout=15,
-    )
-    data = _safe_json(r, "tmdb_search_person")
-    results = data.get("results", []) if isinstance(data, dict) else []
-    return results if isinstance(results, list) else []
-
-def tmdb_person_movie_credits(pid: int) -> dict | None:
-    if not TMDB_API_KEY or not pid:
-        return None
-    r = requests.get(
-        f"{TMDB_BASE}/person/{pid}/movie_credits",
-        params={"api_key": TMDB_API_KEY},
-        timeout=15,
-    )
-    data = _safe_json(r, "tmdb_person_movie_credits")
-    return data if isinstance(data, dict) and data else None
-
-def tmdb_pick_best_person(person_query: str) -> dict | None:
-    res = tmdb_search_person(person_query)
-    return res[0] if res else None
-
-def build_filmography_answer(person_query: str, role: str) -> tuple[str, str]:
-    best = tmdb_pick_best_person(person_query)
-    if not best:
-        return (f"No encontré a **{person_query}** en TMDb.", person_query)
-
-    pid = best.get("id")
-    display = best.get("name") or person_query
-    if not pid:
-        return (f"No pude resolver a **{person_query}** en TMDb.", display)
-
-    credits = tmdb_person_movie_credits(int(pid))
-    if not credits:
-        return (f"No pude obtener créditos de **{display}** en TMDb.", display)
-
-    if role == "actor":
-        items = credits.get("cast") or []
-        items = items if isinstance(items, list) else []
-        items = sorted(items, key=lambda x: _as_int_year((x or {}).get("release_date")), reverse=True)[:20]
-
-        lines = []
-        for m in items:
-            if not isinstance(m, dict):
-                continue
-            title = m.get("title") or m.get("original_title") or "Sin título"
-            year = _as_int_year(m.get("release_date"))
-            lines.append(f"- {title} ({year})" if year else f"- {title}")
-
-        return ("\n".join(lines), display)
-
-    crew = credits.get("crew") or []
-    crew = crew if isinstance(crew, list) else []
-    directed = [c for c in crew if isinstance(c, dict) and (c.get("job") == "Director")]
-    directed = sorted(directed, key=lambda x: _as_int_year((x or {}).get("release_date")), reverse=True)[:20]
-
-    lines = []
-    for m in directed:
-        title = m.get("title") or m.get("original_title") or "Sin título"
-        year = _as_int_year(m.get("release_date"))
-        lines.append(f"- {title} ({year})" if year else f"- {title}")
-
-    return ("\n".join(lines), display)
-
-# =========================
-# Wikipedia
-# =========================
-def _wiki_api(lang: str) -> str:
-    return f"https://{lang}.wikipedia.org/w/api.php"
-
-def _wiki_headers() -> dict:
-    return {"User-Agent": WIKI_USER_AGENT} if WIKI_USER_AGENT else {}
-
-def wikipedia_summary_by_title(title: str, lang: str) -> dict | None:
-    try:
-        r = requests.get(
-            _wiki_api(lang),
-            params={
-                "action": "query",
-                "titles": title,
-                "redirects": 1,
-                "prop": "extracts|info",
-                "exintro": 1,
-                "explaintext": 1,
-                "inprop": "url",
-                "format": "json",
-            },
-            headers=_wiki_headers(),
-            timeout=15,
-        )
-        data = _safe_json(r, f"wikipedia_summary_by_title[{lang}]")
-        pages = ((data.get("query") or {}).get("pages") or {}) if isinstance(data, dict) else {}
-        if not isinstance(pages, dict) or not pages:
-            return None
-        page = next(iter(pages.values()), {})
-        if not isinstance(page, dict) or ("missing" in page):
-            return None
-        return {"title": page.get("title"), "extract": page.get("extract", ""), "url": page.get("fullurl")}
-    except Exception as e:
-        print(f"[WIKI-ERROR] {e}")
-        return None
-
-def wikipedia_summary_best_effort(person_name: str) -> dict | None:
-    return wikipedia_summary_by_title(person_name, WIKI_LANG_PRIMARY) or wikipedia_summary_by_title(
-        person_name, WIKI_LANG_FALLBACK
-    )
-
-# =========================
-# Orchestrator (main)
-# =========================
-def _handle_main_logic(text_c: str, sid: str, ctx: dict) -> dict:
-    tl = _normalize(text_c)
-
-    # FIX: si entra una nueva filmografía, limpia estados del follow-up
-    filmografia_hit_fix = ("filmografia de" in tl) or ("filmografía de" in (text_c or "").lower())
-    if filmografia_hit_fix:
-        for k in ["awaiting_filmography_choice", "awaiting_continue_after_detail"]:
-            ctx.pop(k, None)
-        _ctx_set(sid, ctx)
-
-    # ESTADO: después de filmografía (elige biografía o película)
-    if ctx.get("awaiting_filmography_choice"):
-        person_name = (ctx.get("filmography_person_name") or "").strip()
-        items = ctx.get("filmography_items") or []
-        items = items if isinstance(items, list) else []
-
-        if "biografia" in tl:
-            bio = wikipedia_summary_best_effort(person_name)
-            ctx.pop("awaiting_filmography_choice", None)
-            ctx["awaiting_continue_after_detail"] = True
-            _ctx_set(sid, ctx)
-
-            if not bio:
-                return _bundle(
-                    f"No pude encontrar la biografía de **{person_name}** en Wikipedia{_n(ctx)}.",
-                    [_after_detail_continue(ctx)],
-                )
-
-            title = bio.get("title") or person_name
-            extract = (bio.get("extract") or "").strip()
-            url = bio.get("url") or ""
-            tail = f"\n\n🔗 {url}" if url else ""
-
-            return _bundle(f"📚 **{title}**\n\n{extract}{tail}", [_after_detail_continue(ctx)])
-
-        picked = _pick_filmography_movie_from_text(text_c, items)
-        if picked:
-            det = omdb_get_by_title(picked.get("title") or "", year=picked.get("year"))
-            ctx.pop("awaiting_filmography_choice", None)
-            ctx["awaiting_continue_after_detail"] = True
-            _ctx_set(sid, ctx)
-
-            if det:
-                return _bundle(format_movie_details(det), [_after_detail_continue(ctx)])
-
-            return _bundle(f"No pude encontrar esa película en IMDb/OMDb{_n(ctx)}.", [_after_detail_continue(ctx)])
-
-        _ctx_set(sid, ctx)
-        return _bundle(_filmography_followup_question(ctx), [])
-
-    # ESTADO: continuar después de dar detalle (SI/NO)
-    if ctx.get("awaiting_continue_after_detail"):
-        if _is_no(text_c):
-            ctx = _soft_reset_keep_name(ctx)
-            _ctx_set(sid, ctx)
-            return _bundle(_thanks(ctx), [])
-
-        if _is_yes(text_c):
-            ctx.pop("awaiting_continue_after_detail", None)
-            _ctx_set(sid, ctx)
-            return _bundle(_welcome_menu(ctx), [])
-
-        ctx.pop("awaiting_continue_after_detail", None)
-        _ctx_set(sid, ctx)
-
-    # FILMOGRAFÍA (director/actor)
-    filmografia_hit = ("filmografia de" in tl) or ("filmografía de" in (text_c or "").lower())
-    if filmografia_hit:
-        person_query = re.split(r"filmograf(i|í)a de", text_c, flags=re.I)[-1].strip()
-
-        # CHANGE: inferir rol automáticamente (respetar si el usuario lo especifica)
-        if any(k in tl for k in ["como actor", "como actriz", "actor", "actriz"]):
-            role = "actor"
-        elif any(k in tl for k in ["como director", "como directora", "director", "directora"]):
-            role = "director"
-        else:
-            role = "actor"  # por defecto, sensible para la mayoría de consultas
-            best = tmdb_pick_best_person(person_query)
-            if best and best.get("id"):
-                credits = tmdb_person_movie_credits(int(best["id"])) or {}
-                cast_len = len(credits.get("cast") or [])
-                director_len = len([
-                    c for c in (credits.get("crew") or [])
-                    if isinstance(c, dict) and (c.get("job") == "Director")
-                ])
-                if director_len > cast_len:
-                    role = "director"
-
-        filmography_list, display_person = build_filmography_answer(person_query, role)
-
-        header = f"🎬 Filmografia de {display_person}".strip()
-        answer = f"{header}\n\n{filmography_list}".strip()
-
-        ctx["awaiting_filmography_choice"] = True
-        ctx["filmography_person_name"] = display_person
-        ctx["filmography_items"] = _parse_filmography_lines_to_items(filmography_list)
-        _ctx_set(sid, ctx)
-
-        return _bundle(answer, [_filmography_followup_question(ctx)])
-
-    # Fallback
-    return _bundle("No entendí la pregunta.", [])
-
-def handle(text: str, sid: str) -> dict:
-    ctx = _ctx_get(sid)
-    text_c = _clean(text)
-
-    # =========================
-    # GATING de nombre
-    # =========================
-    if not _get_user_name(ctx):
-        if ctx.get("awaiting_name"):
-            candidate = text_c.strip()
-            if not candidate:
-                return _bundle("Hola! Como estas? Me podes decir tu nombre en el chat?", [])
-
-            ctx["user_name"] = candidate
-            ctx.pop("awaiting_name", None)
-
-            pending = (ctx.get("pending_original_query") or "").strip()
-            if pending:
-                ctx.pop("pending_original_query", None)
-                _ctx_set(sid, ctx)
-
-                # ✅ frase corregida
-                msg1 = f"¡Gracias {candidate}! te paso lo que me pediste"
-
-                # ejecutamos lo que había pedido
-                res2 = _handle_main_logic(pending, sid, ctx)
-
-                # ✅ AHORA el frontend ya renderiza `messages` como burbujas separadas
-                msgs: list[str] = []
-                if isinstance(res2, dict):
-                    a2 = (res2.get("answer") or "").strip()
-                    if a2:
-                        msgs.append(a2)
-
-                    extra = res2.get("messages") or []
-                    if isinstance(extra, list):
-                        msgs.extend([m.strip() for m in extra if isinstance(m, str) and m.strip()])
-
-                return _bundle(msg1, msgs)
-
-            _ctx_set(sid, ctx)
-            return _bundle(
-                f"Muchas gracias {candidate} por visitar Movie Assistant!\nHacé la consulta que quieras sobre Cine 🎬",
-                [_welcome_menu(ctx)],
-            )
-
-        if _is_greeting(text_c):
-            ctx["awaiting_name"] = True
-            _ctx_set(sid, ctx)
-            return _bundle("Hola! Como estas? Me podes decir tu nombre en el chat?", [])
-
-        # primer mensaje sin saludo -> igual pedimos nombre y guardamos lo que pidió
-        ctx["awaiting_name"] = True
-        ctx["pending_original_query"] = text_c
-        _ctx_set(sid, ctx)
-        return _bundle("Hola! Como estas? Me podes decir tu nombre en el chat?", [])
-
-    # Si ya tenemos user_name y el usuario saluda
-    if _is_greeting(text_c):
-        _ctx_set(sid, ctx)
-        return _bundle(f"Hola{_n(ctx)}! {_welcome_menu(ctx)}", [])
-
-    return _handle_main_logic(text_c, sid, ctx)
-
-# =========================
-# Routes
-# =========================
-@app.get("/")
-def root():
-    return {"ok": True, "service": "cine-assistant"}
-
-@app.get("/health")
-def health():
-    return {"ok": True}
-
-@app.post("/chat")
-def chat(req: ChatRequest, x_session_id: str | None = Header(default=None)):
-    sid = x_session_id or str(uuid.uuid4())
-    res = handle(req.text, sid)
-    res["session_id"] = sid
-    res["ok"] = True
-    return res
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Movie Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Bootstrap -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    body {
+      background-color: #0D1117; /* (1) */
+      color: #e5e7eb;
+      height: 100vh;
+      margin: 0;
+    }
+
+    /* Layout principal */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .header {
+      padding: 1.5rem;
+      text-align: center; /* (4) */
+    }
+
+    /* Contenedor principal */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    /* ✅ Zona chat (scroll). Le dejamos espacio abajo para que NO tape la barra fija */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding-bottom: 110px; /* deja lugar para la barra fija */
+    }
+
+    /* (2) Rectángulo donde va el chat */
+    .chat-box {
+      background-color: #151b23;
+      border-radius: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.18); /* línea blanca muy fina */
+    }
+
+    /* Texto inicial (no burbuja) (6) */
+    .empty-state {
+      color: #9aa4b2;
+      text-align: center;
+      padding: 18px 10px;
+    }
+
+    /* Lista de mensajes */
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Burbuja base */
+    .bubble {
+      max-width: 78%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* (3) Usuario (izquierda) */
+    .bubble.user {
+      align-self: flex-start;
+      background: #262c36;
+      color: #e5e7eb;
+      border-top-left-radius: 6px;
+    }
+
+    /* Asistente (derecha) */
+    .bubble.assistant {
+      align-self: flex-end;
+      background: #005c4b;
+      color: #e7fffa;
+      border-top-right-radius: 6px;
+    }
+
+    /* Cargando */
+    .bubble.loading {
+      opacity: 0.9;
+      font-style: italic;
+    }
+
+    /* ✅ Barra inferior FIJA estilo WhatsApp */
+    .input-bar {
+      position: sticky;
+      bottom: 0;
+      z-index: 50;
+      background: #0D1117; /* mismo color del body */
+      padding: 14px 0 18px;
+      margin-top: 12px;     /* separa del rectángulo del chat */
+      margin-bottom: 0;     /* IMPORTANTE: no la sube ni la mueve */
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Agentic AI */
+    .mode-pill {
+      width: 100%;
+      height: 3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 1rem;
+      border-radius: 0.5rem;
+      background: linear-gradient(135deg, #0a3069, #0a3069);
+      background-color: #0a3069;
+      border-color: #0a3069;
+      font-weight: 800;
+      font-size: 1.2rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* Botón */
+    .btn-send {
+      height: 3rem;
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* ✅ Botón "Ver más" dentro del chat */
+    .btn-more {
+      border-color: rgba(255,255,255,0.22);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- Header -->
+    <div class="header">
+      <h1 class="m-0">🎬 Movie Assistant</h1>
+    </div>
+
+    <!-- Chat + input -->
+    <div class="container main">
+
+      <!-- Chat -->
+      <div class="chat-area">
+        <div class="chat-box">
+          <!-- (6) Mensaje inicial NO es burbuja -->
+          <div id="emptyState" class="empty-state">
+            ¿Hablamos de cine? ¿Qué te gustaría saber?
+          </div>
+
+          <div id="messages" class="messages"></div>
+
+          <!-- ✅ Botón Ver más (expande la MISMA burbuja de filmografía) -->
+          <div id="moreWrap" style="display:none; margin-top:12px; text-align:center;">
+            <button id="moreBtn" type="button" class="btn btn-outline-light btn-more">
+              Ver más
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra inferior -->
+      <div class="input-bar">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-3">
+            <div class="mode-pill">Agentic AI</div>
+          </div>
+
+          <div class="col-md-7">
+            <input
+              id="query"
+              type="text"
+              class="form-control"
+              placeholder="Escribií lo que quieras"
+            />
+          </div>
+
+          <div class="col-md-2 d-grid">
+            <button id="sendBtn" class="btn btn-primary btn-send">
+              Enviar
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= JS ================= -->
+  <script>
+    const API_URL = "https://cine-app-otdv.onrender.com/chat";
+    const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
+
+    // referencia a la burbuja de filmografía para expandirla
+    let filmographyBubble = null;
+
+    // ✅ “modo WhatsApp”: si el usuario está abajo, seguimos abajo.
+    // si el usuario sube, NO lo empujamos.
+    let stickToBottom = true;
+
+    // ✅ Durante "Ver más": NO auto-scroll nunca y preservamos el scrollTop
+    let expandingFilmography = false;
+    let expandScrollTop = 0;
+
+    function getSessionId() {
+      let sid = localStorage.getItem("cine_session_id");
+      if (!sid) {
+        sid = (crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Date.now()) + "-" + Math.random().toString(16).slice(2)
+        );
+        localStorage.setItem("cine_session_id", sid);
+      }
+      return sid;
+    }
+
+    function getChatArea() {
+      return document.querySelector(".chat-area");
+    }
+
+    function isNearBottom(threshold = 60) {
+      const chatArea = getChatArea();
+      if (!chatArea) return true;
+      return (chatArea.scrollTop + chatArea.clientHeight) >= (chatArea.scrollHeight - threshold);
+    }
+
+    function scrollToBottom() {
+      const chatArea = getChatArea();
+      if (!chatArea) return;
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // ✅ Detecta si el user está leyendo arriba o abajo
+    window.addEventListener("load", () => {
+      const ca = getChatArea();
+      if (!ca) return;
+
+      // arrancamos mostrando lo último
+      stickToBottom = true;
+      scrollToBottom();
+
+      ca.addEventListener("scroll", () => {
+        // si estamos expandiendo, no tocamos stickToBottom
+        if (expandingFilmography) return;
+        stickToBottom = isNearBottom();
+      });
+    });
+
+    function appendMessage(role, text, extraClass = "") {
+      const messages = document.getElementById("messages");
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${role} ${extraClass}`.trim();
+      bubble.textContent = text;
+      messages.appendChild(bubble);
+
+      // ✅ solo autoscroll si corresponde (y NO estamos expandiendo)
+      if (!expandingFilmography && stickToBottom) scrollToBottom();
+
+      return bubble;
+    }
+
+    function setMoreVisible(visible) {
+      const wrap = document.getElementById("moreWrap");
+      if (!wrap) return;
+      wrap.style.display = visible ? "block" : "none";
+    }
+
+    function preserveScrollIfExpanding(applyFn) {
+      const ca = getChatArea();
+      if (!ca) return applyFn();
+
+      if (expandingFilmography) {
+        // mantiene el scroll EXACTO donde estaba cuando apretaste "Ver más"
+        applyFn();
+        ca.scrollTop = expandScrollTop;
+        return;
+      }
+
+      applyFn();
+    }
+
+    async function sendMessage(forcedText = null, isInternal = false) {
+      const input = document.getElementById("query");
+      const text = (forcedText !== null ? forcedText : input.value).trim();
+      if (!text) return;
+
+      // (6) sacar el mensaje inicial al primer envío REAL del usuario
+      if (!isInternal) {
+        const empty = document.getElementById("emptyState");
+        if (empty) empty.remove();
+      }
+
+      // Mensaje usuario (solo si NO es interno)
+      if (!isInternal) {
+        appendMessage("user", text);
+      }
+
+      input.value = "";
+      input.focus();
+
+      // Mensaje asistente cargando
+      let loadingBubble;
+
+      // Si es "Ver más" y ya existe burbuja de filmografía, reutilizamos ESA misma
+      if (isInternal && filmographyBubble) {
+        loadingBubble = filmographyBubble;
+
+        preserveScrollIfExpanding(() => {
+          loadingBubble.classList.add("loading");
+          // hint (sin crear otra burbuja)
+          if (!loadingBubble.textContent.includes("⏳ Cargando más...")) {
+            loadingBubble.textContent += "\n\n⏳ Cargando más...";
+          }
+        });
+      } else {
+        loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
+      }
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": getSessionId()
+          },
+          body: JSON.stringify({ mode: "consultas", text }),
+        });
+
+        const data = await res.json();
+
+        preserveScrollIfExpanding(() => {
+          loadingBubble.classList.remove("loading");
+
+          // Primera respuesta con filmografía paginada => guardamos referencia a esa burbuja
+          if (!isInternal && data.has_more) {
+            loadingBubble.textContent = data.answer || "Sin resultados.";
+            filmographyBubble = loadingBubble;
+          }
+          // "Ver más" => expandimos MISMA burbuja (sin auto-scroll)
+          else if (isInternal && filmographyBubble) {
+            filmographyBubble.textContent = data.answer || filmographyBubble.textContent;
+          }
+          // Mensajes normales
+          else {
+            loadingBubble.textContent = data.answer || "Sin resultados.";
+            if (!data.has_more) filmographyBubble = null;
+          }
+        });
+
+        // ✅ NUEVO: renderizar mensajes extra como burbujas separadas
+        // Solo para mensajes normales (NO internos "Ver más")
+        if (!isInternal && Array.isArray(data.messages) && data.messages.length > 0) {
+          data.messages.forEach((m) => {
+            if (typeof m === "string" && m.trim()) {
+              appendMessage("assistant", m.trim());
+            }
+          });
+        }
+
+        setMoreVisible(Boolean(data.has_more));
+
+        // ✅ WhatsApp: si no estamos expandiendo y estamos abajo -> mantener abajo
+        if (!expandingFilmography && stickToBottom) scrollToBottom();
+
+        return data;
+      } catch (err) {
+        preserveScrollIfExpanding(() => {
+          loadingBubble.classList.remove("loading");
+
+          if (isInternal && filmographyBubble) {
+            filmographyBubble.textContent = filmographyBubble.textContent.replace("\n\n⏳ Cargando más...", "");
+          } else {
+            loadingBubble.textContent = "❌ Error de conexión con la API.";
+          }
+        });
+
+        setMoreVisible(false);
+
+        if (!expandingFilmography && stickToBottom) scrollToBottom();
+
+        return { has_more: false };
+      }
+    }
+
+    document.getElementById("sendBtn").addEventListener("click", () => sendMessage());
+
+    document.getElementById("query").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // ✅ Click UNA sola vez: trae todo lo que falta, expande la MISMA burbuja,
+    // y NO te mueve el scroll (como "Leer más" de WhatsApp).
+    document.getElementById("moreBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("moreBtn");
+      btn.disabled = true;
+      btn.textContent = "Cargando...";
+
+      const ca = getChatArea();
+      expandingFilmography = true;
+      expandScrollTop = ca ? ca.scrollTop : 0; // guardamos la posición
+
+      while (true) {
+        const data = await sendMessage(MORE_COMMAND, true);
+        if (!data || !data.has_more) break;
+      }
+
+      expandingFilmography = false;
+
+      // al terminar: NO auto-scroll. el usuario decide bajar.
+      setMoreVisible(false);
+
+      btn.disabled = false;
+      btn.textContent = "Ver más";
+    });
+  </script>
+</body>
+</html>
