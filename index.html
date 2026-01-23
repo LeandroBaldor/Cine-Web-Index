@@ -370,6 +370,16 @@
           }
         });
 
+        // ✅ NUEVO: renderizar mensajes extra como burbujas separadas
+        // Solo para mensajes normales (NO internos "Ver más")
+        if (!isInternal && Array.isArray(data.messages) && data.messages.length > 0) {
+          data.messages.forEach((m) => {
+            if (typeof m === "string" && m.trim()) {
+              appendMessage("assistant", m.trim());
+            }
+          });
+        }
+
         setMoreVisible(Boolean(data.has_more));
 
         // ✅ WhatsApp: si no estamos expandiendo y estamos abajo -> mantener abajo
