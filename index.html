@@ -1,9 +1,20 @@
+<!-- ============================================================
+index.html  (Frontend - Movie Assistant)
+Objetivo:
+- Mostrar un "primer mensaje" (empty state) que YA pida el nombre
+- Enviar mensajes al backend (/chat) y renderizar:
+  - Mensaje del usuario (derecha)
+  - Respuesta principal del bot (izquierda)
+  - Mensajes adicionales del bot (izquierda, en burbujas separadas)
+- Mantener session_id (para que el backend conserve el contexto)
+============================================================ -->
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Movie Assistant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Movie Assistant</title>
 
   <!-- Bootstrap -->
   <link
@@ -12,437 +23,326 @@
   />
 
   <style>
+    /* ============================================================
+      ESTILOS GENERALES
+      - Fondo: #0D1117
+      - Contenedor chat: #151b23 + borde fino blanco
+      - Burbuja izquierda: #262c36
+    ============================================================ */
     body {
-      background-color: #0D1117; /* (1) */
+      background-color: #0D1117;
       color: #e5e7eb;
       height: 100vh;
       margin: 0;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    .app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      padding: 18px 12px 8px 12px;
+      text-align: center;
+    }
+    .title {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      font-size: 42px;
+      line-height: 1;
+      margin: 0;
+    }
+    .subtitle {
+      margin-top: 6px;
+      color: #9aa4b2;
+      font-size: 16px;
     }
 
     /* Layout principal */
-    .app {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    .header {
-      padding: 1.5rem;
-      text-align: center;
-    }
-
-    .header h1 {
-      font-size: 2rem;
-      font-weight: 800;
-      margin-bottom: 0.5rem;
-    }
-
-    .subtitle {
-      color: #9ca3af;
-      font-size: 0.95rem;
-      margin-bottom: 0;
-    }
-
-    /* Contenedor de chat */
-    .chat-wrapper {
+    .content {
       flex: 1;
       display: flex;
-      justify-content: center;
-      padding: 0 1rem 1rem;
-    }
-
-    .chat-container {
-      width: 100%;
-      max-width: 900px;
-      background-color: #151b23; /* (2) */
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px;
-      padding: 1rem;
-      display: flex;
       flex-direction: column;
-      overflow: hidden;
+      padding: 14px 16px 16px 16px;
+      gap: 12px;
+      min-height: 0; /* importante para scroll interno */
     }
 
-    /* Área de mensajes */
-    .chat-area {
+    /* Contenedor del chat */
+    .chat-box {
       flex: 1;
+      background: #151b23;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 18px;
+      padding: 16px;
       overflow-y: auto;
-      padding: 0.5rem;
-
-      /* ✅ necesario para que align-self funcione */
-      display: flex;
-      flex-direction: column;
+      min-height: 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
 
     /* Burbuja */
-    .msg {
-      max-width: 80%;
-      padding: 0.75rem 1rem;
-      margin: 0.35rem 0;
-      border-radius: 14px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      line-height: 1.35;
+    .bubble {
+      max-width: 78%;
+      padding: 12px 14px;
+      border-radius: 16px;
+      margin: 10px 0;
+      white-space: pre-wrap; /* respeta saltos de línea del backend */
+      word-break: break-word;
+      line-height: 1.25rem;
+      border: 1px solid rgba(255,255,255,0.07);
     }
 
-    /* USUARIO (derecha) - verde */
-    .msg.user {
-      align-self: flex-end;
-      margin-left: auto;              /* ✅ refuerzo derecha */
-      background-color: #0b6b5b;
-      border: 1px solid rgba(255, 255, 255, 0.10);
-    }
-
-    /* BOT (izquierda) - gris */
-    .msg.assistant {
-      align-self: flex-start;
-      margin-right: auto;             /* ✅ refuerzo izquierda */
-      background-color: #262c36;
-      border: 1px solid rgba(255, 255, 255, 0.10);
-    }
-
-    .msg.loading {
-      opacity: 0.85;
-      font-style: italic;
-    }
-
-    /* Input */
-    .input-area {
-      display: flex;
-      gap: 0.5rem;
-      padding-top: 0.75rem;
-    }
-
-    .input-area input {
-      flex: 1;
-      background-color: #0D1117;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 12px;
+    /* Bot (izquierda) */
+    .bubble.bot {
+      background: #262c36;
       color: #e5e7eb;
-      padding: 0.6rem 0.75rem;
+      margin-right: auto;
+      border-top-left-radius: 6px;
+    }
+
+    /* Usuario (derecha) */
+    .bubble.user {
+      background: #0f766e; /* verde/teal */
+      color: #eaffff;
+      margin-left: auto;
+      border-top-right-radius: 6px;
+      border-color: rgba(0,0,0,0.12);
+    }
+
+    /* Barra inferior: input + send */
+    .composer {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .composer .badge-area {
+      flex: 0 0 auto;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: #d8dee9;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      user-select: none;
+    }
+    .composer input {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: #e5e7eb;
+      padding: 12px 14px;
+      border-radius: 12px;
       outline: none;
     }
-
-    .input-area input:focus {
-      border-color: rgba(255, 255, 255, 0.28);
-    }
-
-    .btn-agentic {
-      background-color: #0b3f7a;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: white;
-      border-radius: 12px;
-      padding: 0.6rem 0.85rem;
-      font-weight: 700;
-    }
+    .composer input::placeholder { color: #98a2b3; }
 
     .btn-send {
-      background-color: #0b3f7a;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: white;
-      border-radius: 12px;
-      padding: 0.6rem 0.9rem;
-      font-weight: 800;
-    }
-
-    .btn-send:hover,
-    .btn-agentic:hover {
-      filter: brightness(1.08);
-    }
-
-    /* Botón "Ver más" */
-    .btn-more {
-      margin-top: 0.6rem;
-      background-color: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #0b3a66; /* azul más oscuro para "Enviar" */
+      border: 1px solid rgba(255,255,255,0.10);
       color: #e5e7eb;
-      border-radius: 10px;
-      padding: 0.35rem 0.7rem;
-      font-size: 0.85rem;
-      font-weight: 700;
-      cursor: pointer;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .btn-send:hover { filter: brightness(1.08); }
+
+    /* Pequeño indicador */
+    .typing {
+      opacity: 0.8;
+      font-size: 13px;
+      color: #9aa4b2;
+      margin-top: 6px;
     }
 
-    .btn-more:hover {
-      filter: brightness(1.12);
+    /* Empty state (primer mensaje visible antes de enviar nada) */
+    .empty-state {
+      margin: 6px 0 14px 0;
     }
   </style>
 </head>
 
 <body>
   <div class="app">
+    <!-- ============================================================
+      HEADER
+    ============================================================ -->
     <div class="header">
-      <h1>🎬 Movie Assistant</h1>
-      <p class="subtitle">Agentic AI + buscador</p>
+      <h1 class="title">
+        🎬 <span>Movie Assistant</span>
+      </h1>
+      <div class="subtitle">Agentic AI + buscador</div>
     </div>
 
-    <div class="chat-wrapper">
-      <div class="chat-container">
-        <div class="chat-area" id="chatArea"></div>
+    <!-- ============================================================
+      CONTENIDO
+      - chat-box (scroll)
+      - composer (input)
+    ============================================================ -->
+    <div class="content">
 
-        <div class="input-area">
-          <button class="btn-agentic" id="btnAgentic">Agentic AI</button>
-          <input id="userInput" type="text" placeholder="Escribí tu consulta..." autocomplete="off" />
-          <button class="btn-send" id="sendBtn">Enviar</button>
+      <div id="chatBox" class="chat-box">
+        <!-- ============================================================
+          EMPTY STATE (IMPORTANTE)
+          Esto NO viene del backend. Es un texto fijo inicial del frontend.
+          Lo cambiamos para que el "primer mensaje" ya pida el nombre.
+        ============================================================ -->
+        <div id="emptyState" class="empty-state">
+          <div class="bubble bot">¡Bienvenido a Movie Assistant! 🎬<br>Antes de arrancar… ¿cómo te llamás?</div>
         </div>
       </div>
+
+      <div class="composer">
+        <div class="badge-area">Agentic AI + buscador</div>
+
+        <input
+          id="userInput"
+          type="text"
+          placeholder="Escribí acá…"
+          autocomplete="off"
+        />
+
+        <button id="sendBtn" class="btn-send">Enviar</button>
+      </div>
+
+      <div id="typing" class="typing" style="display:none;">Pensando…</div>
     </div>
   </div>
 
   <script>
-    // ============================================================
-    // Config API
-    // ============================================================
-    // Cambiá esta URL según tu backend (Render / local)
-    const API_URL = "https://cine-app-otdv.onrender.com/chat";
+    /* ============================================================
+      CONFIG
+      - Ajustá API_BASE si tu backend está en otro dominio.
+      - Si estás en GitHub Pages, apuntá al dominio de Render.
+    ============================================================ */
 
-    // ============================================================
-    // Estado UI
-    // ============================================================
-    const chatArea = document.getElementById("chatArea");
+    // ✅ Recomendado: setear por entorno / reemplazar en deploy.
+    // Ejemplo Render: const API_BASE = "https://tu-app.onrender.com";
+    const API_BASE = ""; // mismo origen si servís todo junto, o vacío para relativo
+
+    const chatBox = document.getElementById("chatBox");
+    const emptyState = document.getElementById("emptyState");
     const userInput = document.getElementById("userInput");
     const sendBtn = document.getElementById("sendBtn");
+    const typing = document.getElementById("typing");
 
-    let stickToBottom = true;
-    let filmographyBubble = null;
-
-    // Si el user toca "Ver más": NO auto-scroll nunca y preservamos el scrollTop
-    let expandingFilmography = false;
-    let expandScrollTop = 0;
-
-    // ============================================================
-    // ✅ Session ID (persistencia)
-    // - Guardar session_id del backend en localStorage
-    // - Enviar X-Session-Id solo si existe
-    // ============================================================
+    /* ============================================================
+      Session handling
+      - Guardamos session_id para que el backend mantenga contexto.
+      - El backend devuelve session_id en cada respuesta.
+    ============================================================ */
     function getSessionId() {
-      return localStorage.getItem("cine_session_id") || "";
+      return localStorage.getItem("movie_assistant_session_id") || "";
     }
-
     function setSessionId(sid) {
-      if (sid && typeof sid === "string") {
-        localStorage.setItem("cine_session_id", sid);
-      }
+      if (sid) localStorage.setItem("movie_assistant_session_id", sid);
     }
 
-    function getChatArea() {
-      return document.querySelector(".chat-area");
-    }
-
-    function isNearBottom(threshold = 60) {
-      const chatArea = getChatArea();
-      if (!chatArea) return true;
-      return (chatArea.scrollTop + chatArea.clientHeight) >= (chatArea.scrollHeight - threshold);
-    }
-
+    /* ============================================================
+      UI helpers
+    ============================================================ */
     function scrollToBottom() {
-      const chatArea = getChatArea();
-      if (!chatArea) return;
-      chatArea.scrollTop = chatArea.scrollHeight;
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // ✅ Detecta si el user está leyendo arriba o abajo
-    window.addEventListener("load", () => {
-      const ca = getChatArea();
-      if (!ca) return;
-
-      // arrancamos mostrando lo último
-      stickToBottom = true;
+    function addBubble(text, who) {
+      const div = document.createElement("div");
+      div.className = "bubble " + (who === "user" ? "user" : "bot");
+      div.textContent = text || "";
+      chatBox.appendChild(div);
       scrollToBottom();
-
-      ca.addEventListener("scroll", () => {
-        stickToBottom = isNearBottom();
-      });
-    });
-
-    // ============================================================
-    // Render mensajes
-    // ============================================================
-    function appendMessage(role, text, extraClass = "") {
-      const msg = document.createElement("div");
-      msg.className = `msg ${role} ${extraClass}`.trim();
-      msg.textContent = text;
-      chatArea.appendChild(msg);
-
-      if (stickToBottom && !expandingFilmography) {
-        scrollToBottom();
-      }
-      return msg;
     }
 
-    function preserveScrollIfExpanding(fn) {
-      const ca = getChatArea();
-      if (!ca) return fn();
-
-      if (expandingFilmography) {
-        expandScrollTop = ca.scrollTop;
-        fn();
-        ca.scrollTop = expandScrollTop; // no auto-scroll
-      } else {
-        fn();
-      }
+    function hideEmptyStateIfNeeded() {
+      if (emptyState) emptyState.style.display = "none";
     }
 
-    // ============================================================
-    // "Ver más" filmografía
-    // ============================================================
-    function attachMoreButtonIfNeeded(data) {
-      if (!data || !data.has_more || !data.more_token || !filmographyBubble) return;
-
-      // Evitar duplicar botón
-      if (filmographyBubble.querySelector(".btn-more")) return;
-
-      const btn = document.createElement("button");
-      btn.className = "btn-more";
-      btn.textContent = "Ver más";
-      btn.addEventListener("click", async () => {
-        expandingFilmography = true;
-
-        try {
-          const sid = getSessionId();
-          const headers = { "Content-Type": "application/json" };
-          if (sid) headers["X-Session-Id"] = sid;
-
-          const res = await fetch(API_URL, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              mode: "consultas",
-              text: `__MORE__:${data.more_token}`
-            }),
-          });
-
-          const moreData = await res.json();
-
-          // ✅ Guardamos/actualizamos session_id
-          setSessionId(moreData.session_id);
-
-          preserveScrollIfExpanding(() => {
-            if (moreData && moreData.answer) {
-              // Expandimos MISMA burbuja
-              filmographyBubble.textContent = moreData.answer;
-              // Re-insertamos botón si todavía hay más
-              filmographyBubble.appendChild(btn);
-            }
-          });
-
-          // Actualizamos token/has_more
-          data.more_token = moreData.more_token;
-          data.has_more = moreData.has_more;
-
-          // si ya no hay más, sacamos botón
-          if (!data.has_more) {
-            btn.remove();
-          }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          expandingFilmography = false;
-        }
-      });
-
-      filmographyBubble.appendChild(btn);
+    function setThinking(on) {
+      typing.style.display = on ? "block" : "none";
     }
 
-    // ============================================================
-    // Envío principal
-    // ============================================================
-    async function sendMessage(text, isInternal = false) {
+    /* ============================================================
+      CALL BACKEND
+      - Envía texto del usuario a POST /chat
+      - Renderiza:
+        res.answer (principal)
+        res.messages[] (burbujas extra)
+    ============================================================ */
+    async function sendMessage() {
+      const text = (userInput.value || "").trim();
       if (!text) return;
 
-      if (!isInternal) {
-        appendMessage("user", text);
-      }
-
-      let loadingBubble;
-      if (isInternal && filmographyBubble) {
-        preserveScrollIfExpanding(() => {
-          // reusar burbuja filmografía
-          filmographyBubble.textContent += "\n\n⏳ Cargando más...";
-        });
-      } else {
-        loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
-      }
+      hideEmptyStateIfNeeded();
+      addBubble(text, "user");
+      userInput.value = "";
+      setThinking(true);
 
       try {
         const sid = getSessionId();
-        const headers = { "Content-Type": "application/json" };
-        if (sid) headers["X-Session-Id"] = sid;
-
-        const res = await fetch(API_URL, {
+        const resp = await fetch(`${API_BASE}/chat`, {
           method: "POST",
-          headers,
-          body: JSON.stringify({ mode: "consultas", text }),
+          headers: {
+            "Content-Type": "application/json",
+            ...(sid ? { "X-Session-Id": sid } : {})
+          },
+          body: JSON.stringify({ mode: "chat", text })
         });
 
-        const data = await res.json();
+        if (!resp.ok) {
+          addBubble("❌ Error de conexión con la API.", "bot");
+          setThinking(false);
+          return;
+        }
 
-        // ✅ Guardamos/actualizamos session_id que devuelve el backend
-        setSessionId(data.session_id);
+        const data = await resp.json();
 
-        preserveScrollIfExpanding(() => {
-          loadingBubble.classList.remove("loading");
+        // Guardar session_id
+        if (data && data.session_id) setSessionId(data.session_id);
 
-          // Primera respuesta con filmografía paginada => guardamos referencia a esa burbuja
-          if (!isInternal && data.has_more) {
-            loadingBubble.textContent = data.answer || "Sin resultados.";
-            filmographyBubble = loadingBubble;
-          }
-          // "Ver más" => expandimos MISMA burbuja (sin auto-scroll)
-          else if (isInternal && filmographyBubble) {
-            // nada acá: ya se maneja en el handler del botón
-          }
-          // Respuesta normal
-          else {
-            loadingBubble.textContent = data.answer || "Sin resultados.";
-          }
+        // Respuesta principal
+        if (data && typeof data.answer === "string" && data.answer.trim()) {
+          addBubble(data.answer, "bot");
+        }
 
-          // Mensajes extra (burbujas separadas)
-          if (Array.isArray(data.messages)) {
-            for (const m of data.messages) {
-              if (typeof m === "string" && m.trim()) {
-                appendMessage("assistant", m.trim());
-              }
-            }
-          }
-        });
+        // Mensajes extra (cada uno en su propia burbuja)
+        if (data && Array.isArray(data.messages)) {
+          data.messages.forEach(m => {
+            if (typeof m === "string" && m.trim()) addBubble(m, "bot");
+          });
+        }
 
-        // Botón "Ver más" si aplica
-        attachMoreButtonIfNeeded(data);
-
-      } catch (err) {
-        console.error(err);
-        preserveScrollIfExpanding(() => {
-          if (loadingBubble) {
-            loadingBubble.classList.remove("loading");
-            loadingBubble.textContent = "❌ Error de conexión con la API.";
-          } else {
-            appendMessage("assistant", "❌ Error de conexión con la API.");
-          }
-        });
+      } catch (e) {
+        addBubble("❌ Error de conexión con la API.", "bot");
+      } finally {
+        setThinking(false);
       }
     }
 
-    // ============================================================
-    // Eventos UI
-    // ============================================================
-    sendBtn.addEventListener("click", () => {
-      const t = userInput.value.trim();
-      userInput.value = "";
-      sendMessage(t);
-    });
-
+    /* ============================================================
+      EVENTOS
+    ============================================================ */
+    sendBtn.addEventListener("click", sendMessage);
     userInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const t = userInput.value.trim();
-        userInput.value = "";
-        sendMessage(t);
-      }
+      if (e.key === "Enter") sendMessage();
     });
 
-    // Mensaje inicial
-    appendMessage("assistant", "¿Hablamos de cine? ¿Qué te gustaría saber?");
+    // Focus inicial
+    userInput.focus();
+
+    /* ============================================================
+      BLOQUE ANTERIOR (comentado)
+      Motivo: antes el emptyState decía "¿Hablamos de cine?..."
+      Ahora el primer mensaje debe pedir el nombre sí o sí, según la nueva lógica.
+    ============================================================ */
+    /*
+      <div class="bubble bot">¿Hablamos de cine? ¿Qué te gustaría saber?</div>
+    */
   </script>
 </body>
 </html>
