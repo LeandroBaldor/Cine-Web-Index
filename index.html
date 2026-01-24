@@ -28,213 +28,195 @@
 
     .header {
       padding: 1.5rem;
-      text-align: center; /* (4) */
+      text-align: center;
     }
 
-    /* Contenedor principal */
-    .main {
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #9ca3af;
+      font-size: 0.95rem;
+      margin-bottom: 0;
+    }
+
+    /* Contenedor de chat */
+    .chat-wrapper {
       flex: 1;
       display: flex;
-      flex-direction: column;
-      min-height: 0;
+      justify-content: center;
+      padding: 0 1rem 1rem;
     }
 
-    /* ✅ Zona chat (scroll). Le dejamos espacio abajo para que NO tape la barra fija */
+    .chat-container {
+      width: 100%;
+      max-width: 900px;
+      background-color: #151b23; /* (2) */
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Área de mensajes */
     .chat-area {
       flex: 1;
       overflow-y: auto;
-      min-height: 0;
-      padding-bottom: 110px; /* deja lugar para la barra fija */
+      padding: 0.5rem;
     }
 
-    /* (2) Rectángulo donde va el chat */
-    .chat-box {
-      background-color: #151b23;
-      border-radius: 12px;
-      padding: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.18); /* línea blanca muy fina */
-    }
-
-    /* Texto inicial (no burbuja) (6) */
-    .empty-state {
-      color: #9aa4b2;
-      text-align: center;
-      padding: 18px 10px;
-    }
-
-    /* Lista de mensajes */
-    .messages {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    /* Burbuja base */
-    .bubble {
-      max-width: 78%;
-      padding: 10px 12px;
+    /* Burbuja */
+    .msg {
+      max-width: 80%;
+      padding: 0.75rem 1rem;
+      margin: 0.35rem 0;
       border-radius: 14px;
-      line-height: 1.35;
       white-space: pre-wrap;
       word-wrap: break-word;
-      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.06);
+      line-height: 1.35;
     }
 
-    /* (3) Usuario (izquierda) */
-    .bubble.user {
+    /* Usuario (izq) */
+    .msg.user {
       align-self: flex-start;
-      background: #262c36;
-      color: #e5e7eb;
-      border-top-left-radius: 6px;
+      background-color: #262c36; /* (3) */
+      border: 1px solid rgba(255, 255, 255, 0.10);
     }
 
-    /* Asistente (derecha) */
-    .bubble.assistant {
+    /* Asistente (der) */
+    .msg.assistant {
       align-self: flex-end;
-      background: #005c4b;
-      color: #e7fffa;
-      border-top-right-radius: 6px;
+      background-color: #0b6b5b;
+      border: 1px solid rgba(255, 255, 255, 0.10);
     }
 
-    /* Cargando */
-    .bubble.loading {
-      opacity: 0.9;
+    .msg.loading {
+      opacity: 0.85;
       font-style: italic;
     }
 
-    /* ✅ Barra inferior FIJA estilo WhatsApp */
-    .input-bar {
-      position: sticky;
-      bottom: 0;
-      z-index: 50;
-      background: #0D1117; /* mismo color del body */
-      padding: 14px 0 18px;
-      margin-top: 12px;     /* separa del rectángulo del chat */
-      margin-bottom: 0;     /* IMPORTANTE: no la sube ni la mueve */
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
-
-    /* Agentic AI */
-    .mode-pill {
-      width: 100%;
-      height: 3rem;
+    /* Input */
+    .input-area {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 1rem;
-      border-radius: 0.5rem;
-      background: linear-gradient(135deg, #0a3069, #0a3069);
-      background-color: #0a3069;
-      border-color: #0a3069;
-      font-weight: 800;
-      font-size: 1.2rem;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
+      gap: 0.5rem;
+      padding-top: 0.75rem;
     }
 
-    /* Botón */
+    .input-area input {
+      flex: 1;
+      background-color: #0D1117;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      color: #e5e7eb;
+      padding: 0.6rem 0.75rem;
+      outline: none;
+    }
+
+    .input-area input:focus {
+      border-color: rgba(255, 255, 255, 0.28);
+    }
+
+    .btn-agentic {
+      background-color: #0b3f7a;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      border-radius: 12px;
+      padding: 0.6rem 0.85rem;
+      font-weight: 700;
+    }
+
     .btn-send {
-      height: 3rem;
+      background-color: #0b3f7a;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      border-radius: 12px;
+      padding: 0.6rem 0.9rem;
       font-weight: 800;
-      font-size: 1.05rem;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
     }
 
-    /* ✅ Botón "Ver más" dentro del chat */
+    .btn-send:hover,
+    .btn-agentic:hover {
+      filter: brightness(1.08);
+    }
+
+    /* Botón "Ver más" */
     .btn-more {
-      border-color: rgba(255,255,255,0.22);
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      margin-top: 0.6rem;
+      background-color: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: #e5e7eb;
+      border-radius: 10px;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-more:hover {
+      filter: brightness(1.12);
     }
   </style>
 </head>
 
 <body>
   <div class="app">
-
-    <!-- Header -->
     <div class="header">
-      <h1 class="m-0">🎬 Movie Assistant</h1>
+      <h1>🎬 Movie Assistant</h1>
+      <p class="subtitle">Agentic AI + buscador</p>
     </div>
 
-    <!-- Chat + input -->
-    <div class="container main">
+    <div class="chat-wrapper">
+      <div class="chat-container">
+        <div class="chat-area" id="chatArea"></div>
 
-      <!-- Chat -->
-      <div class="chat-area">
-        <div class="chat-box">
-          <!-- (6) Mensaje inicial NO es burbuja -->
-          <div id="emptyState" class="empty-state">
-            ¿Hablamos de cine? ¿Qué te gustaría saber?
-          </div>
-
-          <div id="messages" class="messages"></div>
-
-          <!-- ✅ Botón Ver más (expande la MISMA burbuja de filmografía) -->
-          <div id="moreWrap" style="display:none; margin-top:12px; text-align:center;">
-            <button id="moreBtn" type="button" class="btn btn-outline-light btn-more">
-              Ver más
-            </button>
-          </div>
+        <div class="input-area">
+          <button class="btn-agentic" id="btnAgentic">Agentic AI</button>
+          <input id="userInput" type="text" placeholder="Escribí tu consulta..." autocomplete="off" />
+          <button class="btn-send" id="sendBtn">Enviar</button>
         </div>
       </div>
-
-      <!-- Barra inferior -->
-      <div class="input-bar">
-        <div class="row g-2 align-items-center">
-          <div class="col-md-3">
-            <div class="mode-pill">Agentic AI</div>
-          </div>
-
-          <div class="col-md-7">
-            <input
-              id="query"
-              type="text"
-              class="form-control"
-              placeholder="Escribií lo que quieras"
-            />
-          </div>
-
-          <div class="col-md-2 d-grid">
-            <button id="sendBtn" class="btn btn-primary btn-send">
-              Enviar
-            </button>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 
-  <!-- ================= JS ================= -->
   <script>
-    const API_URL = "https://cine-app-otdv.onrender.com/chat";
-    const MORE_COMMAND = "__VER_MAS_FILMOGRAFIA__";
+    // ============================================================
+    // Config API
+    // ============================================================
+    // Cambiá esta URL según tu backend (Render / local)
+    const API_URL = "https://cine-app.onrender.com/chat";
 
-    // referencia a la burbuja de filmografía para expandirla
+    // ============================================================
+    // Estado UI
+    // ============================================================
+    const chatArea = document.getElementById("chatArea");
+    const userInput = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
+
+    let stickToBottom = true;
     let filmographyBubble = null;
 
-    // ✅ “modo WhatsApp”: si el usuario está abajo, seguimos abajo.
-    // si el usuario sube, NO lo empujamos.
-    let stickToBottom = true;
-
-    // ✅ Durante "Ver más": NO auto-scroll nunca y preservamos el scrollTop
+    // Si el user toca "Ver más": NO auto-scroll nunca y preservamos el scrollTop
     let expandingFilmography = false;
     let expandScrollTop = 0;
 
+    // ============================================================
+    // ✅ Session ID (persistencia)
+    // - Guardar session_id del backend en localStorage
+    // - Enviar X-Session-Id solo si existe
+    // ============================================================
     function getSessionId() {
-      let sid = localStorage.getItem("cine_session_id");
-      if (!sid) {
-        sid = (crypto.randomUUID
-          ? crypto.randomUUID()
-          : String(Date.now()) + "-" + Math.random().toString(16).slice(2)
-        );
+      return localStorage.getItem("cine_session_id") || "";
+    }
+
+    function setSessionId(sid) {
+      if (sid && typeof sid === "string") {
         localStorage.setItem("cine_session_id", sid);
       }
-      return sid;
     }
 
     function getChatArea() {
@@ -263,93 +245,134 @@
       scrollToBottom();
 
       ca.addEventListener("scroll", () => {
-        // si estamos expandiendo, no tocamos stickToBottom
-        if (expandingFilmography) return;
         stickToBottom = isNearBottom();
       });
     });
 
+    // ============================================================
+    // Render mensajes
+    // ============================================================
     function appendMessage(role, text, extraClass = "") {
-      const messages = document.getElementById("messages");
-      const bubble = document.createElement("div");
-      bubble.className = `bubble ${role} ${extraClass}`.trim();
-      bubble.textContent = text;
-      messages.appendChild(bubble);
+      const msg = document.createElement("div");
+      msg.className = `msg ${role} ${extraClass}`.trim();
+      msg.textContent = text;
+      chatArea.appendChild(msg);
 
-      // ✅ solo autoscroll si corresponde (y NO estamos expandiendo)
-      if (!expandingFilmography && stickToBottom) scrollToBottom();
-
-      return bubble;
+      if (stickToBottom && !expandingFilmography) {
+        scrollToBottom();
+      }
+      return msg;
     }
 
-    function setMoreVisible(visible) {
-      const wrap = document.getElementById("moreWrap");
-      if (!wrap) return;
-      wrap.style.display = visible ? "block" : "none";
-    }
-
-    function preserveScrollIfExpanding(applyFn) {
+    function preserveScrollIfExpanding(fn) {
       const ca = getChatArea();
-      if (!ca) return applyFn();
+      if (!ca) return fn();
 
       if (expandingFilmography) {
-        // mantiene el scroll EXACTO donde estaba cuando apretaste "Ver más"
-        applyFn();
-        ca.scrollTop = expandScrollTop;
-        return;
+        expandScrollTop = ca.scrollTop;
+        fn();
+        ca.scrollTop = expandScrollTop; // no auto-scroll
+      } else {
+        fn();
       }
-
-      applyFn();
     }
 
-    async function sendMessage(forcedText = null, isInternal = false) {
-      const input = document.getElementById("query");
-      const text = (forcedText !== null ? forcedText : input.value).trim();
+    // ============================================================
+    // "Ver más" filmografía
+    // ============================================================
+    function attachMoreButtonIfNeeded(data) {
+      if (!data || !data.has_more || !data.more_token || !filmographyBubble) return;
+
+      // Evitar duplicar botón
+      if (filmographyBubble.querySelector(".btn-more")) return;
+
+      const btn = document.createElement("button");
+      btn.className = "btn-more";
+      btn.textContent = "Ver más";
+      btn.addEventListener("click", async () => {
+        expandingFilmography = true;
+
+        try {
+          const sid = getSessionId();
+          const headers = { "Content-Type": "application/json" };
+          if (sid) headers["X-Session-Id"] = sid;
+
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              mode: "consultas",
+              text: `__MORE__:${data.more_token}`
+            }),
+          });
+
+          const moreData = await res.json();
+
+          // ✅ Guardamos/actualizamos session_id
+          setSessionId(moreData.session_id);
+
+          preserveScrollIfExpanding(() => {
+            if (moreData && moreData.answer) {
+              // Expandimos MISMA burbuja
+              filmographyBubble.textContent = moreData.answer;
+              // Re-insertamos botón si todavía hay más
+              filmographyBubble.appendChild(btn);
+            }
+          });
+
+          // Actualizamos token/has_more
+          data.more_token = moreData.more_token;
+          data.has_more = moreData.has_more;
+
+          // si ya no hay más, sacamos botón
+          if (!data.has_more) {
+            btn.remove();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          expandingFilmography = false;
+        }
+      });
+
+      filmographyBubble.appendChild(btn);
+    }
+
+    // ============================================================
+    // Envío principal
+    // ============================================================
+    async function sendMessage(text, isInternal = false) {
       if (!text) return;
 
-      // (6) sacar el mensaje inicial al primer envío REAL del usuario
-      if (!isInternal) {
-        const empty = document.getElementById("emptyState");
-        if (empty) empty.remove();
-      }
-
-      // Mensaje usuario (solo si NO es interno)
       if (!isInternal) {
         appendMessage("user", text);
       }
 
-      input.value = "";
-      input.focus();
-
-      // Mensaje asistente cargando
       let loadingBubble;
-
-      // Si es "Ver más" y ya existe burbuja de filmografía, reutilizamos ESA misma
       if (isInternal && filmographyBubble) {
-        loadingBubble = filmographyBubble;
-
         preserveScrollIfExpanding(() => {
-          loadingBubble.classList.add("loading");
-          // hint (sin crear otra burbuja)
-          if (!loadingBubble.textContent.includes("⏳ Cargando más...")) {
-            loadingBubble.textContent += "\n\n⏳ Cargando más...";
-          }
+          // reusar burbuja filmografía
+          filmographyBubble.textContent += "\n\n⏳ Cargando más...";
         });
       } else {
         loadingBubble = appendMessage("assistant", "⏳ Buscando...", "loading");
       }
 
       try {
+        const sid = getSessionId();
+        const headers = { "Content-Type": "application/json" };
+        if (sid) headers["X-Session-Id"] = sid;
+
         const res = await fetch(API_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Session-Id": getSessionId()
-          },
+          headers,
           body: JSON.stringify({ mode: "consultas", text }),
         });
 
         const data = await res.json();
+
+        // ✅ Guardamos/actualizamos session_id que devuelve el backend
+        setSessionId(data.session_id);
 
         preserveScrollIfExpanding(() => {
           loadingBubble.classList.remove("loading");
@@ -361,83 +384,59 @@
           }
           // "Ver más" => expandimos MISMA burbuja (sin auto-scroll)
           else if (isInternal && filmographyBubble) {
-            filmographyBubble.textContent = data.answer || filmographyBubble.textContent;
+            // nada acá: ya se maneja en el handler del botón
           }
-          // Mensajes normales
+          // Respuesta normal
           else {
             loadingBubble.textContent = data.answer || "Sin resultados.";
-            if (!data.has_more) filmographyBubble = null;
           }
-        });
 
-        // ✅ NUEVO: renderizar mensajes extra como burbujas separadas
-        // Solo para mensajes normales (NO internos "Ver más")
-        if (!isInternal && Array.isArray(data.messages) && data.messages.length > 0) {
-          data.messages.forEach((m) => {
-            if (typeof m === "string" && m.trim()) {
-              appendMessage("assistant", m.trim());
+          // Mensajes extra (burbujas separadas)
+          if (Array.isArray(data.messages)) {
+            for (const m of data.messages) {
+              if (typeof m === "string" && m.trim()) {
+                appendMessage("assistant", m.trim());
+              }
             }
-          });
-        }
-
-        setMoreVisible(Boolean(data.has_more));
-
-        // ✅ WhatsApp: si no estamos expandiendo y estamos abajo -> mantener abajo
-        if (!expandingFilmography && stickToBottom) scrollToBottom();
-
-        return data;
-      } catch (err) {
-        preserveScrollIfExpanding(() => {
-          loadingBubble.classList.remove("loading");
-
-          if (isInternal && filmographyBubble) {
-            filmographyBubble.textContent = filmographyBubble.textContent.replace("\n\n⏳ Cargando más...", "");
-          } else {
-            loadingBubble.textContent = "❌ Error de conexión con la API.";
           }
         });
 
-        setMoreVisible(false);
+        // Botón "Ver más" si aplica
+        attachMoreButtonIfNeeded(data);
 
-        if (!expandingFilmography && stickToBottom) scrollToBottom();
-
-        return { has_more: false };
+      } catch (err) {
+        console.error(err);
+        preserveScrollIfExpanding(() => {
+          if (loadingBubble) {
+            loadingBubble.classList.remove("loading");
+            loadingBubble.textContent = "❌ Error de conexión con la API.";
+          } else {
+            appendMessage("assistant", "❌ Error de conexión con la API.");
+          }
+        });
       }
     }
 
-    document.getElementById("sendBtn").addEventListener("click", () => sendMessage());
+    // ============================================================
+    // Eventos UI
+    // ============================================================
+    sendBtn.addEventListener("click", () => {
+      const t = userInput.value.trim();
+      userInput.value = "";
+      sendMessage(t);
+    });
 
-    document.getElementById("query").addEventListener("keydown", (e) => {
+    userInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        sendMessage();
+        const t = userInput.value.trim();
+        userInput.value = "";
+        sendMessage(t);
       }
     });
 
-    // ✅ Click UNA sola vez: trae todo lo que falta, expande la MISMA burbuja,
-    // y NO te mueve el scroll (como "Leer más" de WhatsApp).
-    document.getElementById("moreBtn").addEventListener("click", async () => {
-      const btn = document.getElementById("moreBtn");
-      btn.disabled = true;
-      btn.textContent = "Cargando...";
-
-      const ca = getChatArea();
-      expandingFilmography = true;
-      expandScrollTop = ca ? ca.scrollTop : 0; // guardamos la posición
-
-      while (true) {
-        const data = await sendMessage(MORE_COMMAND, true);
-        if (!data || !data.has_more) break;
-      }
-
-      expandingFilmography = false;
-
-      // al terminar: NO auto-scroll. el usuario decide bajar.
-      setMoreVisible(false);
-
-      btn.disabled = false;
-      btn.textContent = "Ver más";
-    });
+    // Mensaje inicial
+    appendMessage("assistant", "¿Hablamos de cine? ¿Qué te gustaría saber?");
   </script>
 </body>
 </html>
