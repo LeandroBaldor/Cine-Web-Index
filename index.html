@@ -2,16 +2,19 @@
 index.html  (Frontend - Movie Assistant)
 Objetivo:
 - NO hardcodear saludo en HTML (primer mensaje viene del backend)
-- Enviar mensajes al backend /chat
-- Renderizar múltiples burbujas (answer + messages[])
-- Scroll tipo WhatsApp (chatBox con overflow-y:auto)
+- Enviar mensajes al backend (/chat) y renderizar:
+  - Mensaje del usuario (derecha)
+  - Respuesta principal del bot (izquierda)
+  - Mensajes adicionales del bot (izquierda, en burbujas separadas)
+- Mantener session_id (para que el backend conserve el contexto)
 ============================================================ -->
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Movie Assistant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Movie Assistant</title>
 
   <!-- Bootstrap -->
   <link
@@ -20,150 +23,216 @@ Objetivo:
   />
 
   <style>
+    /* ============================================================
+      ESTILOS GENERALES
+      - Fondo: #0D1117
+      - Contenedor chat: #151b23 + borde fino blanco
+      - Burbuja izquierda: #262c36
+    ============================================================ */
     body {
       background-color: #0D1117;
       color: #e5e7eb;
       height: 100vh;
       margin: 0;
-      overflow: hidden; /* evita scroll del body; scrollea el chatBox */
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
     }
 
     .app {
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      height: 100vh;
     }
 
+    /* Header */
     .header {
-      padding: 1.5rem;
+      padding: 18px 12px 8px 12px;
       text-align: center;
     }
-
     .title {
-      font-size: 3rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
       font-weight: 800;
-      line-height: 1.1;
+      letter-spacing: 0.2px;
+      font-size: 42px;
+      line-height: 1;
+      margin: 0;
     }
-
     .subtitle {
-      margin-top: 0.25rem;
+      margin-top: 6px;
       color: #9aa4b2;
-      font-size: 1.25rem;
+      font-size: 16px;
     }
 
-    /* Contenedor principal (rectángulo grande) */
-    .chat-container {
+    /* Layout principal */
+    .content {
       flex: 1;
-      margin: 0 1rem 1rem;
-      background: #151b23;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 18px;
-      padding: 1rem;
       display: flex;
       flex-direction: column;
-      overflow: hidden; /* el scroll va dentro del chatBox */
+      min-height: 0; /* ✅ CLAVE: permite que el área de chat tenga altura real y scrollee */
+
+      width: min(980px, calc(100% - 20px));
+      margin: 0 auto;
+      padding: 10px 0 14px 0;
     }
 
-    /* Zona de mensajes: scrollea */
-    #chatBox {
+
+    /* Caja de chat */
+    .chat-box {
       flex: 1;
+      min-height: 0;  /* ✅ refuerza el scroll interno en flex */
       overflow-y: auto;
-      padding: 0.5rem;
+      padding: 14px 14px 4px 14px;
+      border-radius: 18px;
+
+      background: #151b23;
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
 
+    /* Burbuja */
     .bubble {
-      max-width: 78%;
+      display: block;               /* ✅ 1 fila por mensaje */
+      width: fit-content;           /* ✅ ancho según texto */
+      max-width: min(78%, 620px);   /* ✅ límite para textos largos */
+
       padding: 12px 14px;
       border-radius: 16px;
-      margin: 8px 0;
+      margin: 10px 0;
+
       white-space: pre-wrap;
-      word-wrap: break-word;
-      line-height: 1.35;
+      overflow-wrap: anywhere;
+      line-height: 1.25rem;
+
+      border: 1px solid rgba(255,255,255,0.07);
     }
 
-    .bot {
+    /* Bot (izquierda) */
+    .bubble.bot {
       background: #262c36;
       color: #e5e7eb;
-      align-self: flex-start;
+      margin-right: auto;
+      border-top-left-radius: 6px;
     }
 
-    .user {
-      background: #0f766e;
-      color: white;
-      align-self: flex-end;
+    /* Usuario (derecha) */
+    .bubble.user {
+      background: #0f766e; /* verde/teal */
+      color: #eaffff;
+      margin-left: auto;
+      border-top-right-radius: 6px;
+      border-color: rgba(0,0,0,0.12);
     }
 
-    /* barra inferior */
-    .input-bar {
+    /* Burbuja "pensando" (con reloj) */
+    .bubble.loading {
+      opacity: 0.85;
+      font-style: italic;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+    .bubble.loading .clock {
+      display: inline-block;
+      animation: pulse 1s infinite;
+    }
+
+    /* Barra inferior: input + send */
+    .composer {
       display: flex;
-      gap: 0.5rem;
-      margin-top: 0.75rem;
+      gap: 10px;
       align-items: center;
+      margin-top: 10px;
     }
-
-    .brand-pill {
-      background: #0b3c6f;
-      color: #cfe7ff;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 0.9rem;
-      border: 1px solid rgba(255,255,255,0.15);
-      user-select: none;
-      white-space: nowrap;
-    }
-
-    #userInput {
-      flex: 1;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.15);
-      background: #0f1720;
-      color: #e5e7eb;
+    .composer .badge-area {
+      flex: 0 0 auto;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: #d8dee9;
       padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      user-select: none;
+    }
+    .composer input {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: #e5e7eb;
+      padding: 12px 14px;
+      border-radius: 12px;
       outline: none;
     }
+    .composer input::placeholder { color: #98a2b3; }
 
-    #sendBtn {
-      background: #0b3c6f;
-      border: 1px solid rgba(255,255,255,0.18);
-      border-radius: 10px;
-      padding: 10px 14px;
+    .btn-send {
+      background: #0b3a66; /* azul más oscuro para "Enviar" */
+      border: 1px solid rgba(255,255,255,0.10);
       color: #e5e7eb;
+      padding: 12px 16px;
+      border-radius: 12px;
       font-weight: 600;
     }
+    .btn-send:hover { filter: brightness(1.08); }
 
-    #sendBtn:hover {
-      filter: brightness(1.06);
-    }
-
-    #typing {
-      display: none;
+    /* Pequeño indicador (legacy) */
+    .typing {
+      opacity: 0.8;
+      font-size: 13px;
       color: #9aa4b2;
-      margin-left: 0.5rem;
-      font-size: 0.95rem;
+      margin-top: 6px;
     }
   </style>
 </head>
 
 <body>
   <div class="app">
+    <!-- ============================================================
+      HEADER
+    ============================================================ -->
     <div class="header">
-      <div class="title">🎬 Movie Assistant</div>
+      <h1 class="title">🎬 Movie Assistant</h1>
       <div class="subtitle">¿Hablamos de cine? ¿Qué te gustaría saber?</div>
     </div>
 
-    <div class="chat-container">
-      <div id="chatBox"></div>
+    <!-- ============================================================
+      CONTENIDO
+      - chat-box (scroll)
+      - composer (input)
+    ============================================================ -->
+    <div class="content">
 
-      <div class="input-bar">
-        <div class="brand-pill">Agentic AI + buscador</div>
-        <input id="userInput" type="text" placeholder="Escribí acá..." autocomplete="off" />
-        <button id="sendBtn">Enviar</button>
-        <span id="typing">Escribiendo...</span>
+      <div id="chatBox" class="chat-box">
+        <!-- ✅ Sin saludo hardcodeado -->
       </div>
+
+      <div class="composer">
+        <div class="badge-area">Agentic AI + buscador</div>
+
+        <input
+          id="userInput"
+          type="text"
+          placeholder="Escribí acá…"
+          autocomplete="off"
+        />
+
+        <button id="sendBtn" class="btn-send">Enviar</button>
+      </div>
+
+      <!-- Legacy (no se usa; queda apagado por setThinking) -->
+      <div id="typing" class="typing" style="display:none;">⏳ Pensando…</div>
     </div>
   </div>
 
   <script>
+    /* ============================================================
+      CONFIG
+      - API_BASE debe apuntar al backend de Render (equivalente a tu viejo API_URL)
+    ============================================================ */
+
     const API_BASE = "https://cine-app-otdv.onrender.com";
 
     const chatBox = document.getElementById("chatBox");
@@ -171,16 +240,9 @@ Objetivo:
     const sendBtn = document.getElementById("sendBtn");
     const typing = document.getElementById("typing");
 
-    // ============================================================
-    // INIT guard (evita mensajes duplicados por doble carga)
-    // ============================================================
-    let initStarted = false;
-    let initDone = false;
-
     /* ============================================================
       Session handling
-      - Guardamos session_id en localStorage
-      - Se envía en el header X-Session-Id
+      - Guardamos session_id para que el backend mantenga contexto.
     ============================================================ */
     function getSessionId() {
       return localStorage.getItem("movie_assistant_session_id") || "";
@@ -198,31 +260,38 @@ Objetivo:
 
     function addBubble(text, who) {
       const div = document.createElement("div");
-      div.className = `bubble ${who}`;
-      div.textContent = text;
+      div.className = "bubble " + (who === "user" ? "user" : "bot");
+      div.textContent = text || "";
       chatBox.appendChild(div);
       scrollToBottom();
     }
 
-    // Loading bubble (reloj)
-    let loadingEl = null;
+    // Burbuja "pensando" dentro del chat (estilo WhatsApp)
+    let loadingBubble = null;
+
     function showLoadingBubble() {
-      if (loadingEl) return;
-      loadingEl = document.createElement("div");
-      loadingEl.className = "bubble bot";
-      loadingEl.textContent = "🕒 ...";
-      chatBox.appendChild(loadingEl);
+      if (loadingBubble) return; // evita duplicados
+
+      loadingBubble = document.createElement("div");
+      loadingBubble.className = "bubble bot loading";
+      loadingBubble.innerHTML = '<span class="clock">⏳</span> Pensando...';
+      chatBox.appendChild(loadingBubble);
       scrollToBottom();
     }
+
     function hideLoadingBubble() {
-      if (!loadingEl) return;
-      loadingEl.remove();
-      loadingEl = null;
+      if (loadingBubble) {
+        loadingBubble.remove();
+        loadingBubble = null;
+      }
     }
 
     function setThinking(on) {
+      // Mostramos una burbuja con reloj mientras esperamos la respuesta
       if (on) showLoadingBubble();
       else hideLoadingBubble();
+
+      // Mantenemos el indicador viejo apagado (por si lo querés reutilizar)
       typing.style.display = "none";
     }
 
@@ -231,10 +300,6 @@ Objetivo:
       - Enviamos "__INIT__" para que Python devuelva el saludo inicial
     ============================================================ */
     async function initConversation() {
-      // Evita que el init se ejecute más de una vez
-      if (initStarted) return;
-      initStarted = true;
-
       setThinking(true);
       try {
         const sid = getSessionId();
@@ -267,17 +332,17 @@ Objetivo:
         addBubble("❌ Error de conexión con la API.", "bot");
       } finally {
         setThinking(false);
-        initDone = true;
       }
     }
 
     /* ============================================================
-      SEND
+      CALL BACKEND
+      - Envía texto del usuario a POST /chat
+      - Renderiza:
+        res.answer (principal)
+        res.messages[] (burbujas extra)
     ============================================================ */
     async function sendMessage() {
-      // Evita enviar mensajes mientras el init todavía no terminó
-      if (!initDone) return;
-
       const text = (userInput.value || "").trim();
       if (!text) return;
 
@@ -298,20 +363,24 @@ Objetivo:
 
         if (!resp.ok) {
           addBubble("❌ Error de conexión con la API.", "bot");
+          setThinking(false);
           return;
         }
 
         const data = await resp.json();
+
         if (data && data.session_id) setSessionId(data.session_id);
 
         if (data && typeof data.answer === "string" && data.answer.trim()) {
           addBubble(data.answer, "bot");
         }
+
         if (data && Array.isArray(data.messages)) {
           data.messages.forEach(m => {
             if (typeof m === "string" && m.trim()) addBubble(m, "bot");
           });
         }
+
       } catch (e) {
         addBubble("❌ Error de conexión con la API.", "bot");
       } finally {
@@ -319,12 +388,17 @@ Objetivo:
       }
     }
 
+    /* ============================================================
+      EVENTOS
+    ============================================================ */
     sendBtn.addEventListener("click", sendMessage);
     userInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") sendMessage();
     });
 
-    addEventListener("load", initConversation);
+    // Focus inicial + init
+    userInput.focus();
+    window.addEventListener("load", initConversation);
   </script>
 </body>
 </html>
