@@ -70,25 +70,24 @@ Objetivo:
       flex: 1;
       display: flex;
       flex-direction: column;
+      min-height: 0; /* ✅ CLAVE: permite que el área de chat tenga altura real y scrollee */
 
-      /* ✅ ancho centrado (tipo responsive) */
       width: min(980px, calc(100% - 20px));
       margin: 0 auto;
-
       padding: 10px 0 14px 0;
     }
+
 
     /* Caja de chat */
     .chat-box {
       flex: 1;
+      min-height: 0;  /* ✅ refuerza el scroll interno en flex */
       overflow-y: auto;
       padding: 14px 14px 4px 14px;
       border-radius: 18px;
 
       background: #151b23;
       border: 1px solid rgba(255,255,255,0.14);
-
-      /* sombra suave */
       box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
 
