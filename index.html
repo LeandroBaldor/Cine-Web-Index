@@ -71,24 +71,24 @@ Objetivo:
       display: flex;
       flex-direction: column;
 
-      /* ✅ ancho centrado (tipo rectángulo rojo) */
-      width: min(920px, calc(100% - 48px));
+      /* ✅ ancho centrado (tipo responsive) */
+      width: min(980px, calc(100% - 20px));
       margin: 0 auto;
 
-      padding: 14px 16px 16px 16px;
-      gap: 12px;
-      min-height: 0; /* importante para scroll interno */
+      padding: 10px 0 14px 0;
     }
 
-    /* Contenedor del chat */
+    /* Caja de chat */
     .chat-box {
       flex: 1;
-      background: #151b23;
-      border: 1px solid rgba(255,255,255,0.16);
-      border-radius: 18px;
-      padding: 16px;
       overflow-y: auto;
-      min-height: 0;
+      padding: 14px 14px 4px 14px;
+      border-radius: 18px;
+
+      background: #151b23;
+      border: 1px solid rgba(255,255,255,0.14);
+
+      /* sombra suave */
       box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
 
@@ -126,11 +126,27 @@ Objetivo:
       border-color: rgba(0,0,0,0.12);
     }
 
+    /* Burbuja "pensando" (con reloj) */
+    .bubble.loading {
+      opacity: 0.85;
+      font-style: italic;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+    .bubble.loading .clock {
+      display: inline-block;
+      animation: pulse 1s infinite;
+    }
+
     /* Barra inferior: input + send */
     .composer {
       display: flex;
       gap: 10px;
       align-items: center;
+      margin-top: 10px;
     }
     .composer .badge-area {
       flex: 0 0 auto;
@@ -163,7 +179,7 @@ Objetivo:
     }
     .btn-send:hover { filter: brightness(1.08); }
 
-    /* Pequeño indicador */
+    /* Pequeño indicador (legacy) */
     .typing {
       opacity: 0.8;
       font-size: 13px;
@@ -179,10 +195,8 @@ Objetivo:
       HEADER
     ============================================================ -->
     <div class="header">
-      <h1 class="title">
-        🎬 <span>Movie Assistant</span>
-      </h1>
-      <div class="subtitle">Agentic AI + buscador</div>
+      <h1 class="title">🎬 Movie Assistant</h1>
+      <div class="subtitle">¿Hablamos de cine? ¿Qué te gustaría saber?</div>
     </div>
 
     <!-- ============================================================
@@ -209,7 +223,8 @@ Objetivo:
         <button id="sendBtn" class="btn-send">Enviar</button>
       </div>
 
-      <div id="typing" class="typing" style="display:none;">Pensando…</div>
+      <!-- Legacy (no se usa; queda apagado por setThinking) -->
+      <div id="typing" class="typing" style="display:none;">⏳ Pensando…</div>
     </div>
   </div>
 
@@ -252,8 +267,33 @@ Objetivo:
       scrollToBottom();
     }
 
+    // Burbuja "pensando" dentro del chat (estilo WhatsApp)
+    let loadingBubble = null;
+
+    function showLoadingBubble() {
+      if (loadingBubble) return; // evita duplicados
+
+      loadingBubble = document.createElement("div");
+      loadingBubble.className = "bubble bot loading";
+      loadingBubble.innerHTML = '<span class="clock">⏳</span> Pensando...';
+      chatBox.appendChild(loadingBubble);
+      scrollToBottom();
+    }
+
+    function hideLoadingBubble() {
+      if (loadingBubble) {
+        loadingBubble.remove();
+        loadingBubble = null;
+      }
+    }
+
     function setThinking(on) {
-      typing.style.display = on ? "block" : "none";
+      // Mostramos una burbuja con reloj mientras esperamos la respuesta
+      if (on) showLoadingBubble();
+      else hideLoadingBubble();
+
+      // Mantenemos el indicador viejo apagado (por si lo querés reutilizar)
+      typing.style.display = "none";
     }
 
     /* ============================================================
@@ -261,6 +301,7 @@ Objetivo:
       - Enviamos "__INIT__" para que Python devuelva el saludo inicial
     ============================================================ */
     async function initConversation() {
+      setThinking(true);
       try {
         const sid = getSessionId();
         const resp = await fetch(`${API_BASE}/chat`, {
@@ -290,6 +331,8 @@ Objetivo:
         }
       } catch (e) {
         addBubble("❌ Error de conexión con la API.", "bot");
+      } finally {
+        setThinking(false);
       }
     }
 
