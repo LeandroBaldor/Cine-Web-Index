@@ -1,7 +1,7 @@
 <!-- ============================================================
 index.html  (Frontend - Movie Assistant)
 Objetivo:
-- Mostrar un "primer mensaje" (empty state) que YA pida el nombre
+- NO hardcodear saludo en HTML (primer mensaje viene del backend)
 - Enviar mensajes al backend (/chat) y renderizar:
   - Mensaje del usuario (derecha)
   - Respuesta principal del bot (izquierda)
@@ -70,6 +70,11 @@ Objetivo:
       flex: 1;
       display: flex;
       flex-direction: column;
+
+      /* ✅ ancho centrado (tipo rectángulo rojo) */
+      width: min(920px, calc(100% - 48px));
+      margin: 0 auto;
+
       padding: 14px 16px 16px 16px;
       gap: 12px;
       min-height: 0; /* importante para scroll interno */
@@ -89,13 +94,18 @@ Objetivo:
 
     /* Burbuja */
     .bubble {
-      max-width: 78%;
+      display: block;               /* ✅ 1 fila por mensaje */
+      width: fit-content;           /* ✅ ancho según texto */
+      max-width: min(78%, 620px);   /* ✅ límite para textos largos */
+
       padding: 12px 14px;
       border-radius: 16px;
       margin: 10px 0;
-      white-space: pre-wrap; /* respeta saltos de línea del backend */
-      word-break: break-word;
+
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
       line-height: 1.25rem;
+
       border: 1px solid rgba(255,255,255,0.07);
     }
 
@@ -160,11 +170,6 @@ Objetivo:
       color: #9aa4b2;
       margin-top: 6px;
     }
-
-    /* Empty state (primer mensaje visible antes de enviar nada) */
-    .empty-state {
-      margin: 6px 0 14px 0;
-    }
   </style>
 </head>
 
@@ -188,14 +193,7 @@ Objetivo:
     <div class="content">
 
       <div id="chatBox" class="chat-box">
-        <!-- ============================================================
-          EMPTY STATE (IMPORTANTE)
-          Esto NO viene del backend. Es un texto fijo inicial del frontend.
-          Lo cambiamos para que el "primer mensaje" ya pida el nombre.
-        ============================================================ -->
-        <div id="emptyState" class="empty-state">
-          <div class="bubble bot">¡Bienvenido a Movie Assistant! 🎬<br>Antes de arrancar… ¿cómo te llamás?</div>
-        </div>
+        <!-- ✅ Sin saludo hardcodeado -->
       </div>
 
       <div class="composer">
@@ -218,16 +216,12 @@ Objetivo:
   <script>
     /* ============================================================
       CONFIG
-      - Ajustá API_BASE si tu backend está en otro dominio.
-      - Si estás en GitHub Pages, apuntá al dominio de Render.
+      - API_BASE debe apuntar al backend de Render (equivalente a tu viejo API_URL)
     ============================================================ */
 
-    // ✅ Recomendado: setear por entorno / reemplazar en deploy.
-    // Ejemplo Render: const API_BASE = "https://tu-app.onrender.com";
-    const API_BASE = ""; // mismo origen si servís todo junto, o vacío para relativo
+    const API_BASE = "https://cine-app-otdv.onrender.com";
 
     const chatBox = document.getElementById("chatBox");
-    const emptyState = document.getElementById("emptyState");
     const userInput = document.getElementById("userInput");
     const sendBtn = document.getElementById("sendBtn");
     const typing = document.getElementById("typing");
@@ -235,7 +229,6 @@ Objetivo:
     /* ============================================================
       Session handling
       - Guardamos session_id para que el backend mantenga contexto.
-      - El backend devuelve session_id en cada respuesta.
     ============================================================ */
     function getSessionId() {
       return localStorage.getItem("movie_assistant_session_id") || "";
@@ -259,12 +252,45 @@ Objetivo:
       scrollToBottom();
     }
 
-    function hideEmptyStateIfNeeded() {
-      if (emptyState) emptyState.style.display = "none";
-    }
-
     function setThinking(on) {
       typing.style.display = on ? "block" : "none";
+    }
+
+    /* ============================================================
+      INIT (primer mensaje desde backend)
+      - Enviamos "__INIT__" para que Python devuelva el saludo inicial
+    ============================================================ */
+    async function initConversation() {
+      try {
+        const sid = getSessionId();
+        const resp = await fetch(`${API_BASE}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(sid ? { "X-Session-Id": sid } : {})
+          },
+          body: JSON.stringify({ mode: "consultas", text: "__INIT__" })
+        });
+
+        if (!resp.ok) {
+          addBubble("❌ Error de conexión con la API.", "bot");
+          return;
+        }
+
+        const data = await resp.json();
+        if (data && data.session_id) setSessionId(data.session_id);
+
+        if (data && typeof data.answer === "string" && data.answer.trim()) {
+          addBubble(data.answer, "bot");
+        }
+        if (data && Array.isArray(data.messages)) {
+          data.messages.forEach(m => {
+            if (typeof m === "string" && m.trim()) addBubble(m, "bot");
+          });
+        }
+      } catch (e) {
+        addBubble("❌ Error de conexión con la API.", "bot");
+      }
     }
 
     /* ============================================================
@@ -278,7 +304,6 @@ Objetivo:
       const text = (userInput.value || "").trim();
       if (!text) return;
 
-      hideEmptyStateIfNeeded();
       addBubble(text, "user");
       userInput.value = "";
       setThinking(true);
@@ -291,7 +316,7 @@ Objetivo:
             "Content-Type": "application/json",
             ...(sid ? { "X-Session-Id": sid } : {})
           },
-          body: JSON.stringify({ mode: "chat", text })
+          body: JSON.stringify({ mode: "consultas", text })
         });
 
         if (!resp.ok) {
@@ -302,15 +327,12 @@ Objetivo:
 
         const data = await resp.json();
 
-        // Guardar session_id
         if (data && data.session_id) setSessionId(data.session_id);
 
-        // Respuesta principal
         if (data && typeof data.answer === "string" && data.answer.trim()) {
           addBubble(data.answer, "bot");
         }
 
-        // Mensajes extra (cada uno en su propia burbuja)
         if (data && Array.isArray(data.messages)) {
           data.messages.forEach(m => {
             if (typeof m === "string" && m.trim()) addBubble(m, "bot");
@@ -332,17 +354,9 @@ Objetivo:
       if (e.key === "Enter") sendMessage();
     });
 
-    // Focus inicial
+    // Focus inicial + init
     userInput.focus();
-
-    /* ============================================================
-      BLOQUE ANTERIOR (comentado)
-      Motivo: antes el emptyState decía "¿Hablamos de cine?..."
-      Ahora el primer mensaje debe pedir el nombre sí o sí, según la nueva lógica.
-    ============================================================ */
-    /*
-      <div class="bubble bot">¿Hablamos de cine? ¿Qué te gustaría saber?</div>
-    */
+    window.addEventListener("load", initConversation);
   </script>
 </body>
 </html>
